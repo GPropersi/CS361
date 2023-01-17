@@ -19,14 +19,14 @@ def prng_service():
             line_in_file = line_in_file.strip()
 
             if line_in_file == "run":
-                time.sleep(2)
                 run_service = True
+                time.sleep(4)
 
         if run_service:
             with open("prng-service.txt", 'w', newline='') as prng_service_txt_file:
-                time.sleep(1)
                 random_num = random.choice(range(0, NUM_OF_IMAGES))
                 prng_service_txt_file.writelines([str(random_num)])
+            time.sleep(4)
 
 if __name__ == "__main__":
     prng_service()

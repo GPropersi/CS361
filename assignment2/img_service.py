@@ -1,5 +1,4 @@
 import os
-import random
 import time
 
 NUM_OF_IMAGES = set([val for val in range(len(os.listdir("images")))])
@@ -16,7 +15,7 @@ def img_service():
     while True:
         run_service = False
 
-        with open("prng-service.txt", 'r', newline='') as img_txt_file:
+        with open("image-service.txt" , 'r', newline='') as img_txt_file:
             lines_in_file = img_txt_file.readlines()
 
             if not lines_in_file or len(lines_in_file) > 1:
@@ -28,6 +27,13 @@ def img_service():
             try:
                 if int(line_in_file) in NUM_OF_IMAGES:
                     run_service = True
+                    time.sleep(4)
+
+                    with open("image-service.txt" , 'w', newline='') as img_txt_file:
+                        img_txt_file.writelines('')
+
+                    time.sleep(4)
+
             except ValueError:
                 continue
 
