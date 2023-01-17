@@ -61,8 +61,6 @@ def read_prng_file_and_return_number() -> int:
     with open("prng-service.txt", 'r', newline='') as edited_prng_service_file:
         lines_in_file = edited_prng_service_file.readlines()
 
-    print(lines_in_file)
-
     if not lines_in_file or len(lines_in_file) > 1:
         return -1
     
