@@ -5,6 +5,7 @@ import time
 NUM_OF_IMAGES = len(os.listdir("images"))
 
 def prng_service():
+    print("PRNG Service Listening...")
     while True:
         run_service = False
 
@@ -18,6 +19,7 @@ def prng_service():
             line_in_file = line_in_file.strip()
 
             if line_in_file == "run":
+                time.sleep(2)
                 run_service = True
 
         if run_service:

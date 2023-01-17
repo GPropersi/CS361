@@ -11,6 +11,8 @@ def img_service():
         file_num, file_extension = image_file.split('.')
         images_and_extension[int(file_num)] = file_extension
 
+    print("Image Service Listening...")
+    previously_run = None
     while True:
         run_service = False
 
@@ -33,10 +35,12 @@ def img_service():
             image_file_num = int(line_in_file)
             image_file_extension = images_and_extension[image_file_num]
             image_file = f"images/image-{image_file_num}.{image_file_extension}"
-            with open("image-service.txt" , 'w', newline='') as img_txt_file:
-                print("Writing to file")
-                img_txt_file.writelines([image_file])
-            time.sleep(10)
+
+            if image_file != previously_run:
+                with open("image-service.txt" , 'w', newline='') as img_txt_file:
+                    img_txt_file.writelines([image_file])
+
+                previously_run = image_file
 
 if __name__ == "__main__":
     img_service()
