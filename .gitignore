@@ -4,3 +4,4 @@ images/
 venv/
 *.pyc
 __pycache__/
+docs/
