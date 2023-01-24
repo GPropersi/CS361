@@ -1,0 +1,22 @@
+{
+  "name": "word_guess",
+  "version": "1.0.0",
+  "description": "CLI game that has you guess a word and saves your win/loss record!",
+  "exports": "./index.js",
+  "type": "module",
+  "node": ">=14.16",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "GPropersi",
+  "license": "ISC",
+  "dependencies": {
+    "align-text": "^1.0.2",
+    "center-align": "^1.0.1",
+    "chalk": "^5.2.0",
+    "chalk-animation": "^2.0.3",
+    "figlet": "^1.5.2",
+    "gradient-string": "^2.0.2",
+    "inquirer": "^9.1.4"
+  }
+}
