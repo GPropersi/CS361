@@ -5,17 +5,23 @@ import chalkAnimation from "chalk-animation";
 import gradient from "gradient-string";
 import align_text from "align-text";
 import center_align from "center-align";
-import fs from "fs";
+// import { promises as fs } from 'fs';
+import fs from 'fs';
 import { createSpinner } from "nanospinner";
 
-const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms = 1500) => new Promise((r) => setTimeout(r, ms));
 
 const GUEST = 'WordGuesser3000';
 const USERFILE = "./db_files/users.json";
 const DB_FOLDER = "./db_files";
 const PIPE_TO_API = "./listener_for_random_word.json";
 const ui = new inquirer.ui.BottomBar();
+const SETTINGS_TEXT = "Settings Menu - Use Arrow Keys to Select and Modify Your Settings";
+let bottomTitleText;
 let current_username;
+let menuChoice;
+let menuSelection;
+let letsPlay = true;
 
 let user = {
     username: GUEST,
@@ -61,7 +67,7 @@ async function titleBlock(underTitleText, toDoNext) {
             110
         )
     ));
-    return toDoNext();
+    await toDoNext();
 }
 
 async function askIfGuest() {
@@ -122,39 +128,39 @@ async function loginOrRegister(){
         }
     });
     current_username = answer.user_username;
-    await getUserOrCreateUser()
+    await getUserOrCreateUser(current_username)
 }
 
-async function getUserOrCreateUser() {
+async function getUserOrCreateUser(usernameToCheck) {
     await showLoadingSpinner("Getting User Ready");
 
-    // Read in the users file
-    fs.readFile(USERFILE, 'utf8', (err, data) => {
-        if (err) {
-            console.error("Error - unable to read the user file");
-            process.exit(1);
-        }
-        let userData = JSON.parse(data);
-        
-        // Find user in JSON file
-        for (const existing_user of userData) {
-            if (existing_user.username === current_username) {
-                user = userData;
-                return;
-            }
-        }
+    let originalUserDataRaw;
+    try {
+        originalUserDataRaw = await fs.promises.readFile(USERFILE, 'utf8');
+    } catch (err) {
+        console.error("Error - unable to read the user file");
+        process.exit(1);
+    }
 
-        // Create user if not found
-        user.username = current_username
-        userData.push(user)
-        fs.writeFile(USERFILE, JSON.stringify(userData), (err) => {
-            if (err) {
-                console.error("Unable to append user data to database");
-                process.exit(1)
-            }
-        })
-        return;
-    })
+    const originalUserData = JSON.parse(originalUserDataRaw);
+    // Find user in JSON file data, if exists set proper data
+    for (let i = 0; i < originalUserData.length; i++) {
+        if (originalUserData[i].username === usernameToCheck) {
+            user = originalUserData[i];
+            return;
+        }
+    }
+        
+    // Create user if not found
+    user.username = usernameToCheck
+    originalUserData.push(user)
+
+    try {
+        await fs.promises.writeFile(USERFILE, JSON.stringify(originalUserData));
+    } catch (err) {
+        console.error("Unable to append user data to database");
+        process.exit(1)
+    }
 }
 
 async function showLoadingSpinner(updateText) {
@@ -181,12 +187,7 @@ async function mainMenuGuest() {
         ],
     });
 
-    if (answers.main_menu_option === 'Exit') {
-        console.clear();
-        process.exit(0);
-    }
-
-    console.log(answers)
+    menuSelection = answers.main_menu_option;
 }
 
 async function mainMenu() {
@@ -203,66 +204,144 @@ async function mainMenu() {
         ],
     });
 
-    if (answers.main_menu_option === 'Save and Exit') {
-        console.clear();
-        process.exit(0);
+    menuSelection = answers.main_menu_option;
+}
+
+async function handleMenu(menuOption) {
+    switch (menuOption) {
+        case 'Settings': {
+            await showLoadingSpinner('Loading Settings');
+            await titleBlock(SETTINGS_TEXT, settings);
+        }
+        case 'Exit': {
+            console.clear();
+            process.exit(0);
+        }
+        case 'Save and Exit': {
+            await saveUserData();
+            await showLoadingSpinner('Saving User Data');
+            console.clear();
+            process.exit(0);
+        }
+        case 'Guess A Word!': {
+            await requestWord();
+            await playGame();
+        }
+    }
+}
+
+async function settings() {
+    const settingsAnswer = await inquirer.prompt({
+        name: 'settings_selection',
+        type: 'list',
+        message: 'Select an Option Below Using the Arrow Keys and Return Key:',
+        choices: [
+        'Word Length',
+        'Word Hints',
+        'Skip Instructions on New Game',
+        'Okay to Repeat Words',
+        'Save and Return to Menu'
+        ],
+    });
+
+    if (settingsAnswer.settings_selection === 'Save and Return to Menu') {
+        await titleBlock(bottomTitleText, menuChoice)
+    }
+}
+
+async function saveUserData(){
+    // Read in the users file
+    let userDataRaw;
+
+    try {
+        userDataRaw = await fs.promises.readFile(USERFILE, 'utf8');
+    } catch (err) {
+        console.error("Error - unable to read the user file");
+        process.exit(1);
     }
 
-    console.log(answers)
+    const userData = JSON.parse(userDataRaw);
+
+    // Find user in JSON file data
+    for (let i = 0; i < userData.length; i++) {
+        if (userData[i].username === current_username) {
+            userData[i] = user;
+            break;
+        }
+    }
+
+    try {
+        await fs.promises.writeFile(USERFILE, JSON.stringify(userData));
+    } catch (err) {
+        console.error("Unable to append user data to database");
+        process.exit(1)
+    }
+}
+
+async function makeFolderIfDoNotExist() {
+    // Make db folder if it doesn't exist
+    try{
+        await fs.promises.mkdir(DB_FOLDER);
+    } catch (err) {
+        if (err.code == 'EEXIST') {
+            return
+        }
+        console.error(err)
+        process.exit(1)
+    }
 }
 
 async function makeFilesIfDoNotExist() {
-    // Make db folder if it doesn't exist
-    fs.access(DB_FOLDER, fs.constants.F_OK, (err) => {
-        if (err) {
-            fs.mkdir(DB_FOLDER, (err) => {
-                if (err) {
-                    console.error("Error - database needs '/db_files' folder");
-                    process.exit(1);
-                }
-            })
-        };
-
-    });
-
     const necessary_files = [USERFILE, PIPE_TO_API];
     let data_to_append;
     for (const file of necessary_files) {
         // Make user and pipe file if they do not exist
-        fs.access(file, fs.constants.F_OK, (err) =>{
-            if (err) {
-                if (file === USERFILE) {
-                    data_to_append = JSON.stringify([user]);
-                } else {
-                    data_to_append = JSON.stringify('{}')
-                }
-                fs.appendFile(file, data_to_append, (err) => {
-                    if (err) {
-                        console.error(`Error - game needs ${file} file`);
-                        process.exit(1);
-                    }
-                });
+        let fileExists = await checkIfFileExists(file);
+        if (!fileExists) {
+            if (file === USERFILE) {
+                data_to_append = JSON.stringify([user]);
+            } else {
+                data_to_append = JSON.stringify('{}')
             }
-        });
+            
+            try {
+                await fs.promises.appendFile(file, data_to_append);
+            } catch (err) {
+                console.error(`Error - game needs ${file} file`);
+                process.exit(1);
+            }
+        }
     }
-
-    return true
 }
 
-async function settings() {
-    
+async function checkIfFileExists (path) {  
+    try {
+        await fs.promises.access(path);
+        return true
+    } catch {
+        return false
+    }
 }
+  
 
+await makeFolderIfDoNotExist();
 await makeFilesIfDoNotExist();
+
 await titleBlock('A Node.js CLI Word Guessing Game - Made By Giovanni Propersi', askIfGuest);
 
 if (current_username === GUEST) {
-    const bottomTitleText = `Playing As: ${current_username}\n` +
+    menuChoice = mainMenuGuest;
+    bottomTitleText = `Playing As: ${user.username}\n` +
         `Note: Your Win/Loss Record and User Settings Will not be Saved\n` +
         `Wins: ${user.wins}    Losses: ${user.losses}    Current Word Length: ${user.settings.word_length}`
-    await titleBlock(bottomTitleText, mainMenuGuest);
 } else {
-    const bottomTitleText = `Playing As: ${current_username}\n` +
+    menuChoice = mainMenu;
+    bottomTitleText = `Playing As: ${user.username}\n` +
         `Total Wins: ${user.wins}    Total Losses: ${user.losses}    Current Word Length: ${user.settings.word_length}`
-    await titleBlock(bottomTitleText, mainMenu);
 }
+
+while (letsPlay) {
+    await titleBlock(bottomTitleText, menuChoice);
+    await handleMenu(menuSelection);
+}
+// console.log("Ending?")
