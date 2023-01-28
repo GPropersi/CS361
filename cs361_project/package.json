@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "align-text": "^1.0.2",
+    "axios": "^1.2.6",
     "center-align": "^1.0.1",
     "chalk": "^5.2.0",
     "chalk-animation": "^2.0.3",

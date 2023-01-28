@@ -20,11 +20,14 @@ const MIN_WORD_LENGTH = 3;
 const MAX_WORD_LENGTH = 15;
 const MAIN_MENU_LINES = '\n\n\n\n\n\n\n\n\n\n\n';
 
-let bottomTitleText;
-let current_username;
+let wordToGuess;
+let bottomTitleTextMainMenu;
+let bottomTitleTextGame;
+let currentUsername;
 let menuChoice;
 let menuSelection;
 let letsPlay = true;
+let isPlaying = false;
 
 let user = {
     username: GUEST,
@@ -52,6 +55,25 @@ let user = {
         15: {W: 0, L: 0},
     },
     words_played: [],
+}
+
+let wordRequest = {
+    request: {
+        word_needed: false,
+        word_length: 0
+    },
+    response: {
+        word: null,
+        new_word: false
+    }
+}
+
+let gameData = {
+    letters_guessed: [],
+    hints_left: -1,
+    word_array: [],
+    correct_letters: [],
+    guesses: -1,
 }
 
 function titleBlockMain() {
@@ -98,17 +120,14 @@ async function askIfGuest() {
 
     await handleIfGuestOrUser(
         answers.type_of_user === 'Play as Guest -- Jump Right In!', 
-        answers.type_of_user === 'Login/Register with Username'
     )
 }
 
-async function handleIfGuestOrUser(isGuest, wantsLogin){
+async function handleIfGuestOrUser(isGuest){
     if (isGuest) {
-        current_username = GUEST;
+        currentUsername = GUEST;
         return;
-    }
-    
-    if (wantsLogin) {
+    } else {
         const underTitleText = `Login/Register Below!\n` +
             `If You Haven't Made a Username Already, It Will Be Saved For You!`
         await titleBlock(underTitleText, loginOrRegister);
@@ -132,8 +151,8 @@ async function loginOrRegister(){
             return 'Please enter a username, 3-29 characters in length, only alphanumeric or underscores allowed';            
         }
     });
-    current_username = answer.user_username;
-    await getUserOrCreateUser(current_username)
+    currentUsername = answer.user_username;
+    await getUserOrCreateUser(currentUsername)
 }
 
 async function getUserOrCreateUser(usernameToCheck) {
@@ -168,10 +187,15 @@ async function getUserOrCreateUser(usernameToCheck) {
     }
 }
 
-async function showLoadingSpinner(updateText) {
+async function showLoadingSpinner(updateText, ms = 1500, success = true, error_message = '') {
     const spinner = createSpinner(updateText).start()
-    await sleep();
-    spinner.success();
+    await sleep(ms);
+    
+    if (success) {
+        spinner.success();
+    } else {
+        spinner.error({text: error_message, mark: `:(`})
+    }
 }
 
 async function showBottomBar(barText) {
@@ -244,8 +268,214 @@ async function handleMenu(menuOption) {
             break;
         }
         case 'Guess A Word!': {
+            isPlaying = true;
             await requestWord();
-            await playGame();
+            break;
+        }
+    }
+}
+
+async function requestWord() {
+    wordRequest.request.word_needed = true
+    wordRequest.request.word_length = user.settings.word_length
+
+    try {
+        await fs.promises.writeFile(PIPE_TO_API, JSON.stringify(wordRequest));
+    } catch (err) {
+        console.error(`Error - game needs ${PIPE_TO_API} file`);
+        process.exit(1);
+    }
+
+    let waitingForWord = true;
+    let pipeData;
+
+    while (waitingForWord) {
+        await showLoadingSpinner(`Requesting a ${user.settings.word_length} letter word...`, 1500)
+        try {
+            pipeData = await fs.promises.readFile(PIPE_TO_API);
+            wordRequest = JSON.parse(pipeData);
+
+            if (wordRequest.response.word !== null && wordRequest.response.new_word) {
+                wordToGuess = wordRequest.response.word;
+                waitingForWord = false;
+                gameData.word_array = wordToGuess.split("");
+                gameData.hints_left = user.settings.hints;
+                gameData.guesses = wordToGuess.length + 2;
+                for (let i = 0; i < wordToGuess.length; i++) {
+                    gameData.correct_letters[i] = "_"
+                }
+                await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
+            }
+        } catch (err) {
+            await showLoadingSpinner(`Error`, 1500, false, err);
+            console.error(`Error reading ${PIPE_TO_API} for word`);
+            process.exit(1);
+        }
+    }
+}
+
+async function runGame() {
+    const guessingGame = await inquirer.prompt({
+        name: 'game_guess',
+        type: 'input',
+        message: 'Guess a Letter: ', 
+        validate(value) {
+            if (value[0] === '/') {
+                return true;
+            }
+
+            const validLetter = (value.length === 1 && value.match("^[a-zA-Z\(\)]+$"))
+            if (!validLetter) {
+                return "Please guess a single letter";
+            }
+            
+            const alreadyGuessed = (gameData.letters_guessed.includes(value[0]))
+            if (alreadyGuessed) {
+                return `You already guessed "${value[0]}"`
+            }
+
+            return true
+        }       
+    })
+
+    const lettGuess = guessingGame.game_guess[0];
+    const letterInWord = gameData.word_array.includes(lettGuess);
+    
+    if (lettGuess === '/') {
+        
+        await showLoadingSpinner(`Help wanted...`, 1500)
+    } else if (letterInWord) {
+        gameData.guesses -= 1
+        gameData.letters_guessed.push(lettGuess)
+        for (let i = 0; i < gameData.word_array.length; i++) {
+            if (gameData.word_array[i] === lettGuess) {
+                gameData.correct_letters[i] = lettGuess
+            }
+        }
+        
+        if (checkIfWordGuessed()){
+            await showLoadingSpinner(`Correctly guessed the word!`, 1500)
+            const currentWordLength = user.settings.word_length.toString();
+            user.wins += 1
+            user.win_loss_details[currentWordLength].W += 1
+            user.words_played.push(gameData.word_array.join(""))
+            await winningScreen();
+
+        } else {
+            await showLoadingSpinner(`Correctly guessed a letter`, 1500)
+        }
+    } else if (!letterInWord) {
+        gameData.guesses -= 1
+        gameData.letters_guessed.push(lettGuess)
+        await showLoadingSpinner(`Incorrectly guessed a letter`, 1500)
+    }
+
+    if (gameData.guesses === -1) {
+        // Game over
+        await showLoadingSpinner(`Game over :(`, 1500)
+        user.losses += 1
+        const currentWordLength = user.settings.word_length.toString();
+        user.win_loss_details[currentWordLength].L += 1
+        await losingScreen();
+    }
+}
+
+function checkIfWordGuessed(){
+    for (let i = 0; i < gameData.word_array.length; i++) {
+        if (gameData.word_array[i] !== gameData.correct_letters[i]){
+            return false;
+        }
+    }
+    return true;
+}
+
+function winningScreenTitle() {
+    console.clear()
+    console.log(gradient.rainbow.multiline(figlet.textSync(`You Won!\n\n\n`, {
+        verticalLayout: 'full',
+        horizontalLayout: 'full',
+        width: 200,
+    })));
+}
+
+async function winningScreen() {
+    console.clear();
+    winningScreenTitle();
+    console.log(chalk.green(
+        center_align(
+            `Great job!\nYou Guessed the Word!\n\n` +
+            `The word was: "${wordToGuess}"\n\n` +
+            `I'd Guess You're Great at This!`, 
+            110
+        )
+    ));
+    await afterGameScreenMenu();
+}
+
+function losingScreenTitle() {
+    console.clear()
+    console.log(gradient.passion.multiline(figlet.textSync(`You Lost :(\n\n\n`, {
+        verticalLayout: 'full',
+        horizontalLayout: 'full',
+        width: 200,
+    })));
+}
+
+async function losingScreen() {
+    console.clear();
+    losingScreenTitle();
+    console.log(chalk.green(
+        center_align(
+            `\n\nYou'll Get it Next Time!\n\n` +
+            `The word was: "${wordToGuess}"\n\n`,
+            110
+        )
+    ));
+    await afterGameScreenMenu();
+}
+
+async function afterGameScreenMenu() {
+    const answers = await inquirer.prompt({
+        name: 'after_game_menu_option',
+        type: 'list',
+        prefix: MAIN_MENU_LINES,
+        message: 'Select an Option Below Using the Return Key:',
+        choices: [
+        {
+            name: 'Play Again?',
+            short: `Let's Play Again!!`
+        },
+        {
+            name: 'Main Menu',
+            short: `Heading Back to the Menu!`
+        },
+        {
+            name: 'Save and Exit',
+            short: `Come Again!`
+        }
+        ],
+    });
+
+    menuSelection = answers.after_game_menu_option;
+
+    switch (menuSelection) {
+        case 'Play Again?': {
+            isPlaying = true;
+            await requestWord();
+            break;
+        }
+        case 'Main Menu': {
+            isPlaying = false;
+            break;
+        }
+        case 'Save and Exit': {
+            isPlaying = false;
+            if (user.username !== GUEST) {
+                await saveUserData();
+            }
+            await showLoadingSpinner('Saving User Data', 500);
+            console.clear();
+            process.exit(0);
             break;
         }
     }
@@ -303,10 +533,10 @@ async function settings() {
         }
         case 'Save and Return to Menu': {
             await showLoadingSpinner('Saving Settings...');
-            if (current_username !== GUEST) {
+            if (currentUsername !== GUEST) {
                 await saveUserData();
             }
-            updateBottomTitleText()
+            updateBottomTitleMainMenuText()
             break;
         }
     }
@@ -462,7 +692,7 @@ async function saveUserData(){
 
     // Find user in JSON file data
     for (let i = 0; i < userData.length; i++) {
-        if (userData[i].username === current_username) {
+        if (userData[i].username === currentUsername) {
             userData[i] = user;
             break;
         }
@@ -476,7 +706,7 @@ async function saveUserData(){
     }
 }
 
-async function makeFolderIfDoNotExist() {
+async function makeFolderIfDoesNotExist() {
     // Make db folder if it doesn't exist
     try{
         await fs.promises.mkdir(DB_FOLDER);
@@ -489,38 +719,44 @@ async function makeFolderIfDoNotExist() {
     }
 }
 
-async function makeFilesIfDoNotExist() {
-    const necessary_files = [USERFILE, PIPE_TO_API];
-    let data_to_append;
-    for (const file of necessary_files) {
-        // Make user and pipe file if they do not exist
-        let fileExists = await checkIfFileExists(file);
-        if (!fileExists) {
-            if (file === USERFILE) {
-                data_to_append = JSON.stringify([user]);
-            } else {
-                data_to_append = JSON.stringify('{}')
-            }
-            
-            try {
-                await fs.promises.appendFile(file, data_to_append);
-            } catch (err) {
-                console.error(`Error - game needs ${file} file`);
-                process.exit(1);
-            }
+async function prepareFilesForGame() {
+    // Make user file if it doesn't exist
+    const userFileExists = await checkIfFileExists(USERFILE);
+    if (!userFileExists) {
+        try {
+            await fs.promises.writeFile(USERFILE, JSON.stringify[user]);
+        } catch (err) {
+            console.error(`Error - game needs ${file} file`);
+            process.exit(1);
         }
+    }
+
+    // The pipe file should be reset at the start of a game, regardless if it exists
+    try {
+        await fs.promises.writeFile(PIPE_TO_API, JSON.stringify(wordRequest));
+    } catch (err) {
+        console.error(`Error - game needs ${file} file`);
+        process.exit(1);
     }
 }
 
-function updateBottomTitleText() {
-    if (current_username === GUEST) {
-        bottomTitleText = `Playing As: ${user.username}\n` +
+function updateBottomTitleMainMenuText() {
+    if (currentUsername === GUEST) {
+        bottomTitleTextMainMenu = `Playing As: ${user.username}\n` +
             `Note: Your Win/Loss Record and User Settings Will not be Saved\n` +
             `Wins: ${user.wins}    Losses: ${user.losses}    Current Word Length: ${user.settings.word_length}    Hints Available: ${user.settings.hints}`
     } else {
-        bottomTitleText = `Playing As: ${user.username}\n` +
+        bottomTitleTextMainMenu = `Playing As: ${user.username}\n` +
             `Total Wins: ${user.wins}    Total Losses: ${user.losses}    Current Word Length: ${user.settings.word_length}    Hints Available: ${user.settings.hints}`
     }
+}
+
+function updateBottomTitleGameText() {
+    bottomTitleTextGame = `Type /help for help!\n` +
+        `Letters Guessed: ${gameData.letters_guessed.join(",")}\n` + 
+        `Guesses Left: ${gameData.guesses}\n` +
+        `Hints Left: ${gameData.hints_left}\n\n` +
+        `YOUR WORD:\n${gameData.correct_letters.join(" ")}`
 }
 
 async function checkIfFileExists (path) {  
@@ -534,20 +770,26 @@ async function checkIfFileExists (path) {
   
 
 // Top line functions to begin CLI app
-await makeFolderIfDoNotExist();
-await makeFilesIfDoNotExist();
+await makeFolderIfDoesNotExist();
+await prepareFilesForGame();
 
 await titleBlock('A Node.js CLI Word Guessing Game - Made By Giovanni Propersi', askIfGuest);
 
-if (current_username === GUEST) {
+if (currentUsername === GUEST) {
     menuChoice = mainMenuGuest;
 } else {
     menuChoice = mainMenu;
 }
 
 while (letsPlay) {
-    updateBottomTitleText()
-    await titleBlock(bottomTitleText, menuChoice);
-    await handleMenu(menuSelection);
+    
+    if (isPlaying) {
+        updateBottomTitleGameText()
+        await titleBlock(bottomTitleTextGame, runGame)
+    } else {
+        updateBottomTitleMainMenuText()
+        await titleBlock(bottomTitleTextMainMenu, menuChoice);
+        await handleMenu(menuSelection);
+    }
+    
 }
-// console.log("Ending?")
