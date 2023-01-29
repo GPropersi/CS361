@@ -43,6 +43,7 @@ let menuChoice;
 let menuSelection;
 let letsPlay = true;
 let isPlaying = false;
+let userRecords;
 
 let defaultSettings = {
     word_length: 5,
@@ -107,16 +108,24 @@ function titleBlockMain() {
     })));
 };
 
-async function titleBlock(underTitleText, toDoNext) {
+async function titleBlock(underTitleText, toDoNext, blue = false) {
     console.clear();
     titleBlockMain();
-    console.log(chalk.green(
-        center_align(
-            `${underTitleText}\n`, 
-            110
-        )
-    ));
-    
+    if (blue) {
+        console.log(chalk.blueBright(
+            center_align(
+                `${underTitleText}\n`, 
+                110
+            )
+        ));
+    } else {
+        console.log(chalk.greenBright(
+            center_align(
+                `${underTitleText}\n`, 
+                110
+            )
+        ));
+    }
     await toDoNext();
 }
 
@@ -311,7 +320,54 @@ async function handleMenu(menuOption) {
             await requestWord();
             break;
         }
+        case 'Records' : {
+            await showLoadingSpinner('Getting your records...');
+            console.clear();
+            updateUserRecords();
+            await titleBlock(userRecords, UserRecordsScreen, true);
+            break;
+        }
     }
+}
+
+function updateUserRecords() {
+    let wantsInstructions;
+    let wantsRepeats;
+
+    if (user.settings.allow_repeats) {
+        wantsRepeats = "Yes";
+    } else {
+        wantsRepeats = "No";
+    }
+
+    if (user.settings.show_instructions) {
+        wantsInstructions = "Yes";
+    } else {
+        wantsInstructions = "No";
+    }
+
+    userRecords = `Username: ${user.username}\n` +
+        `Total Wins: ${user.wins}\tTotal Losses: ${user.losses}\n` +
+        `Current Word Length: ${user.settings.word_length}\t Current Hints: ${user.settings.hints}\n` +
+        `Wants Instructions Before Game: ${wantsInstructions}\t Allows Repeat Words: ${wantsRepeats}\n` +
+        `Specific Word Length Game Statistics:\n\n` +
+        `3: Wins=${user.win_loss_details[3].W} Loss=${user.win_loss_details[3].L}  || 4: Wins=${user.win_loss_details[4].W} Loss=${user.win_loss_details[4].L}\n` +
+        `5: Wins=${user.win_loss_details[5].W} Loss=${user.win_loss_details[5].L}  || 6: Wins=${user.win_loss_details[6].W} Loss=${user.win_loss_details[6].L}\n` +
+        `7: Wins=${user.win_loss_details[7].W} Loss=${user.win_loss_details[7].L}  || 8: Wins=${user.win_loss_details[8].W} Loss=${user.win_loss_details[8].L}\n` +
+        `9: Wins=${user.win_loss_details[9].W} Loss=${user.win_loss_details[9].L}  || 10: Wins=${user.win_loss_details[10].W} Loss=${user.win_loss_details[10].L}\n` +
+        `11: Wins=${user.win_loss_details[11].W} Loss=${user.win_loss_details[11].L} || 12: Wins=${user.win_loss_details[12].W} Loss=${user.win_loss_details[12].L}\n` +
+        `13: Wins=${user.win_loss_details[13].W} Loss=${user.win_loss_details[13].L} || 14: Wins=${user.win_loss_details[14].W} Loss=${user.win_loss_details[14].L}\n` +
+        `15: Wins=${user.win_loss_details[15].W} Loss=${user.win_loss_details[15].L}\n`
+}
+
+async function UserRecordsScreen() {
+    const recordsScreen = await inquirer.prompt({
+        name: 'recordsScreenOption',
+        type: 'list',
+        prefix: MAIN_MENU_LINES,
+        message: 'Press Enter to Return to the Main Menu:',
+        choices: ["Return to main menu"]
+    })
 }
 
 async function requestWord() {
@@ -406,6 +462,18 @@ async function runGame() {
                 } else {
                     gameData.hints_left -= 1
                     giveHint();
+
+                    if (checkIfWordGuessed()){
+                        await showLoadingSpinner(`Correctly guessed the word!`, 1500)
+                        const currentWordLength = user.settings.word_length.toString();
+                        user.wins += 1
+                        user.win_loss_details[currentWordLength].W += 1
+                        user.words_played.push(gameData.word_array.join(""))
+                        if (user.username !== GUEST) {
+                            await saveUserData();
+                        }
+                        await winningScreen();
+                    }
                 }
                 break;
             }

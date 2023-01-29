@@ -277,7 +277,7 @@ function readAllUserInfo(username) {
     if (user.settings.allow_repeats) {
         wantsRepeats = "Yes";
     } else {
-        wantsRepeats = "No;"
+        wantsRepeats = "No";
     }
 
     if (user.settings.show_instructions) {
