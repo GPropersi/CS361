@@ -4,7 +4,7 @@ import fs from 'fs';
 
 // const sleep = (ms = 1500) => new Promise((r) => setTimeout(r, ms));
 const PIPE_TO_API = "./listener_for_random_word.json";
-const spinner = createSpinner("Waiting for Request")
+const spinner = createSpinner("Waiting for Request\n")
 
 let wordRequest = {
     request: {
@@ -23,14 +23,14 @@ function sleep(ms) {
 
 async function sitAndListen() {
     let randomWordSuccess;
+    spinner.start();
     while (true) {
-        spinner.start();
-        await sleep(300);
+        await sleep(50);
         await checkFile();
 
         if (wordRequest.request.word_needed) {
             spinner.update({text: `Request received for a ${wordRequest.request.word_length} letter word!`});
-            await sleep(600);
+            await sleep(300);
             randomWordSuccess = await getRandomWord();
 
             if (randomWordSuccess) {
@@ -38,7 +38,7 @@ async function sitAndListen() {
                 await updatePipeFile();
                 await sleep(3000);
                 console.clear();
-                spinner.update({text: `Waiting for Request`})
+                spinner.update({text: `Waiting for Request\n`})
             }
         }
     }
@@ -47,10 +47,10 @@ async function sitAndListen() {
 async function checkFile() {
     let wordRequestRaw;
     try {
-        wordRequestRaw = await fs.promises.readFile(PIPE_TO_API);
+        wordRequestRaw = await fs.promises.readFile(PIPE_TO_API, 'utf-8');
         wordRequest = JSON.parse(wordRequestRaw);
     } catch (err) {
-        console.error(`Error - microservice needs ${PIPE_TO_API} file`);
+        console.error(`Error - microservice needs ${PIPE_TO_API} file.\n${err}`);
         process.exit(1);
     }
 }
@@ -84,11 +84,6 @@ async function getRandomWord() {
     }
 }
 
-
-async function showLoadingSpinner(updateText) {
-    await sleep();
-    spinner.success();
-}
 
 async function makePipeFile() {
     try {
