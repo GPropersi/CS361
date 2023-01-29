@@ -7,8 +7,36 @@ import align_text from "align-text";
 import center_align from "center-align";
 import fs from 'fs';
 import { createSpinner } from "nanospinner";
+import PressToContinuePrompt from "inquirer-press-to-continue";
 
+inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
 const sleep = (ms = 1500) => new Promise((r) => setTimeout(r, ms));
+
+
+const HELP_TEXT = `\n\n` + 
+    `Welcome to.... Guess The Word!!\n\n` + 
+    `The objective of the game is to guess a word by inputting letters, one at a time.\n` +
+    `The number of guesses you get is the number of letters in the word, plus 2.\n\n` + 
+    `At anytime during the game, if you need a hint, type "/hint", and a random correct letter will be given to you!\n` + 
+    `If there are multiple instances of that same letter, all will be given to you!\n\n` +
+    `You can set how long of a word you want to guess, and how many hints you receive\n from the "Settings" screen on the Main Menu!\n\n` +
+    `Note that the max number of hints you can have is the length of the word, minus 2.\n\n` +
+    `During the game, type in a single letter and press the return key to guess the letter.\n` + 
+    `An error will pop up if you guess anything but a letter, or a letter that was already guessed.\n\n` +
+    `Type "/help" to bring up this help menu again!`
+
+const CLI_HELP_TEXT = `Invalid Arguments: \n` +
+    `Possible arguments include:\n` +
+    `\n` +      // Add username
+    `\n` +      // Get user data
+    `\n` +      // Modify user settings
+    `\n` +      // Get a random word
+    `\n` +      // Command explaining the game
+    `\n`
+
+/*
+TODO: Reset user settings to default
+*/
 
 const GUEST = 'WordGuesser3000';
 const USERFILE = "./db_files/users.json";
@@ -94,8 +122,28 @@ async function titleBlock(underTitleText, toDoNext) {
             110
         )
     ));
+    
     await toDoNext();
 }
+
+async function helpBlock(underTitleText) {
+    console.clear();
+    titleBlockMain();
+    console.log(chalk.green(
+        center_align(
+            `${underTitleText}\n`, 
+            110
+        )
+    ));
+    
+    const {key: anyKey} = await inquirer.prompt({
+        name: 'key',
+        type: 'press-to-continue',
+        anyKey: true,
+        pressToContinueMessage: 'Press a key to continue...',
+      });
+}
+
 
 async function askIfGuest() {
     const answers = await inquirer.prompt({
@@ -156,7 +204,7 @@ async function loginOrRegister(){
 }
 
 async function getUserOrCreateUser(usernameToCheck) {
-    await showLoadingSpinner("Getting User Ready");
+    await showLoadingSpinner("Getting User Ready...");
 
     let originalUserDataRaw;
     try {
@@ -187,20 +235,19 @@ async function getUserOrCreateUser(usernameToCheck) {
     }
 }
 
-async function showLoadingSpinner(updateText, ms = 1500, success = true, error_message = '') {
+async function showLoadingSpinner(updateText, ms = 1500, success = true, error_message = '', error_ms = 500) {
     const spinner = createSpinner(updateText).start()
     await sleep(ms);
     
     if (success) {
         spinner.success();
+        await sleep(error_ms)
     } else {
         spinner.error({text: error_message, mark: `:(`})
+        await sleep(1000);
     }
 }
 
-async function showBottomBar(barText) {
-    ui.updateBottomBar(barText);
-}
 
 async function mainMenuGuest() {
     const answers = await inquirer.prompt({
@@ -250,7 +297,7 @@ async function mainMenu() {
 async function handleMenu(menuOption) {
     switch (menuOption) {
         case 'Settings': {
-            await showLoadingSpinner('Loading Settings');
+            await showLoadingSpinner('Loading Settings...');
             console.clear()
             await titleBlock(SETTINGS_TEXT, settings);
             break;
@@ -262,7 +309,7 @@ async function handleMenu(menuOption) {
         }
         case 'Save and Exit': {
             await saveUserData();
-            await showLoadingSpinner('Saving User Data');
+            await showLoadingSpinner('Saving User Data...');
             console.clear();
             process.exit(0);
             break;
@@ -301,10 +348,15 @@ async function requestWord() {
                 gameData.word_array = wordToGuess.split("");
                 gameData.hints_left = user.settings.hints;
                 gameData.guesses = wordToGuess.length + 2;
+                gameData.letters_guessed = [];
                 for (let i = 0; i < wordToGuess.length; i++) {
                     gameData.correct_letters[i] = "_"
                 }
                 await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
+
+                if (user.settings.show_instructions) {
+                    await helpBlock(HELP_TEXT);
+                }
             }
         } catch (err) {
             await showLoadingSpinner(`Error`, 1500, false, err);
@@ -338,12 +390,32 @@ async function runGame() {
         }       
     })
 
-    const lettGuess = guessingGame.game_guess[0];
+    const lettGuess = guessingGame.game_guess[0].toLowerCase();
     const letterInWord = gameData.word_array.includes(lettGuess);
     
     if (lettGuess === '/') {
-        
-        await showLoadingSpinner(`Help wanted...`, 1500)
+        let command = guessingGame.game_guess.split("/")[1].toLowerCase();
+
+        switch (command) {
+            case "help": {
+                await helpBlock(HELP_TEXT);
+                break
+            }
+            case "hint": {
+                // Hint goes here;
+                if (gameData.hints_left === 0) {
+                    await showLoadingSpinner(`Checking for hints...`, 500, false, `No more hints left...`, 1500);
+                } else {
+                    gameData.hints_left -= 1
+                    // GIVE HINT HERE
+                }
+                break;
+            }
+            default: {
+                await showLoadingSpinner(`Invalid command... use "/help" for help or "/hint" for a hint`, 2000, false, `Invalid command... use "/help" for help or "/hint" for a hint`);
+                break
+            }
+        }
     } else if (letterInWord) {
         gameData.guesses -= 1
         gameData.letters_guessed.push(lettGuess)
@@ -359,15 +431,18 @@ async function runGame() {
             user.wins += 1
             user.win_loss_details[currentWordLength].W += 1
             user.words_played.push(gameData.word_array.join(""))
+            if (user.username !== GUEST) {
+                await saveUserData();
+            }
             await winningScreen();
 
         } else {
-            await showLoadingSpinner(`Correctly guessed a letter`, 1500)
+            await showLoadingSpinner(`Correctly guessed a letter`, 1250)
         }
     } else if (!letterInWord) {
         gameData.guesses -= 1
         gameData.letters_guessed.push(lettGuess)
-        await showLoadingSpinner(`Incorrectly guessed a letter`, 1500)
+        await showLoadingSpinner(`Incorrect letter`, 1250)
     }
 
     if (gameData.guesses === -1) {
@@ -376,6 +451,9 @@ async function runGame() {
         user.losses += 1
         const currentWordLength = user.settings.word_length.toString();
         user.win_loss_details[currentWordLength].L += 1
+        if (user.username !== GUEST) {
+            await saveUserData();
+        }
         await losingScreen();
     }
 }
@@ -457,6 +535,9 @@ async function afterGameScreenMenu() {
     });
 
     menuSelection = answers.after_game_menu_option;
+    if (user.username !== GUEST) {
+        await saveUserData();
+    }
 
     switch (menuSelection) {
         case 'Play Again?': {
@@ -470,9 +551,6 @@ async function afterGameScreenMenu() {
         }
         case 'Save and Exit': {
             isPlaying = false;
-            if (user.username !== GUEST) {
-                await saveUserData();
-            }
             await showLoadingSpinner('Saving User Data', 500);
             console.clear();
             process.exit(0);
@@ -773,23 +851,30 @@ async function checkIfFileExists (path) {
 await makeFolderIfDoesNotExist();
 await prepareFilesForGame();
 
-await titleBlock('A Node.js CLI Word Guessing Game - Made By Giovanni Propersi', askIfGuest);
+if (process.argv === 2) {
+    await titleBlock('A Node.js CLI Word Guessing Game - Made By Giovanni Propersi', askIfGuest);
 
-if (currentUsername === GUEST) {
-    menuChoice = mainMenuGuest;
-} else {
-    menuChoice = mainMenu;
-}
-
-while (letsPlay) {
-    
-    if (isPlaying) {
-        updateBottomTitleGameText()
-        await titleBlock(bottomTitleTextGame, runGame)
+    if (currentUsername === GUEST) {
+        menuChoice = mainMenuGuest;
     } else {
-        updateBottomTitleMainMenuText()
-        await titleBlock(bottomTitleTextMainMenu, menuChoice);
-        await handleMenu(menuSelection);
+        menuChoice = mainMenu;
     }
     
+    while (letsPlay) {
+        
+        if (isPlaying) {
+            updateBottomTitleGameText()
+            await titleBlock(bottomTitleTextGame, runGame)
+        } else {
+            updateBottomTitleMainMenuText()
+            await titleBlock(bottomTitleTextMainMenu, menuChoice);
+            await handleMenu(menuSelection);
+        }
+    }
+} else if (process.argv.length > 2) {
+    for (let i = 0; i < process.argv.length; i++) {
+        console.log(process.argv[i])
+    }
 }
+
+

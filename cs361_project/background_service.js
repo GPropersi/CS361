@@ -30,9 +30,7 @@ async function sitAndListen() {
 
         if (wordRequest.request.word_needed) {
             spinner.update({text: `Request received for a ${wordRequest.request.word_length} letter word!`});
-            await sleep(300);
-            await sleep(300);
-            spinner.update({text: `Request received for a ${wordRequest.request.word_length} letter word!`});
+            await sleep(600);
             randomWordSuccess = await getRandomWord();
 
             if (randomWordSuccess) {
@@ -52,7 +50,7 @@ async function checkFile() {
         wordRequestRaw = await fs.promises.readFile(PIPE_TO_API);
         wordRequest = JSON.parse(wordRequestRaw);
     } catch (err) {
-        console.error(`Error - microservice needs ${file} file`);
+        console.error(`Error - microservice needs ${PIPE_TO_API} file`);
         process.exit(1);
     }
 }
