@@ -17,7 +17,8 @@ const HELP_TEXT = `\n\n` +
     `Welcome to.... Guess The Word!!\n\n` + 
     `The objective of the game is to guess a word by inputting letters, one at a time.\n` +
     `The number of guesses you get is the number of letters in the word, plus 2.\n\n` + 
-    `At anytime during the game, if you need a hint, type "/hint", and a random correct letter will be given to you!\n` + 
+    `At anytime during the game, if you need a hint, type "/hint", and a random correct letter will be given to you!\n` +
+    `Hints do not count towards your guesses!\n` + 
     `If there are multiple instances of that same letter, all will be given to you!\n\n` +
     `You can set how long of a word you want to guess, and how many hints you receive\n from the "Settings" screen on the Main Menu!\n\n` +
     `Note that the max number of hints you can have is the length of the word, minus 2.\n\n` +
@@ -112,7 +113,7 @@ async function titleBlock(underTitleText, toDoNext, blue = false) {
     console.clear();
     titleBlockMain();
     if (blue) {
-        console.log(chalk.blueBright(
+        console.log(chalk.cyanBright(
             center_align(
                 `${underTitleText}\n`, 
                 110
@@ -132,7 +133,7 @@ async function titleBlock(underTitleText, toDoNext, blue = false) {
 async function helpBlock(underTitleText) {
     console.clear();
     titleBlockMain();
-    console.log(chalk.greenBright(
+    console.log(chalk.cyanBright(
         center_align(
             `${underTitleText}\n`, 
             110
@@ -324,7 +325,7 @@ async function handleMenu(menuOption) {
             await showLoadingSpinner('Getting your records...');
             console.clear();
             updateUserRecords();
-            await titleBlock(userRecords, UserRecordsScreen, true);
+            await titleBlock(userRecords, userRecordsScreen, true);
             break;
         }
     }
@@ -357,14 +358,18 @@ function updateUserRecords() {
         `9: Wins=${user.win_loss_details[9].W} Loss=${user.win_loss_details[9].L}  || 10: Wins=${user.win_loss_details[10].W} Loss=${user.win_loss_details[10].L}\n` +
         `11: Wins=${user.win_loss_details[11].W} Loss=${user.win_loss_details[11].L} || 12: Wins=${user.win_loss_details[12].W} Loss=${user.win_loss_details[12].L}\n` +
         `13: Wins=${user.win_loss_details[13].W} Loss=${user.win_loss_details[13].L} || 14: Wins=${user.win_loss_details[14].W} Loss=${user.win_loss_details[14].L}\n` +
-        `15: Wins=${user.win_loss_details[15].W} Loss=${user.win_loss_details[15].L}\n`
+        `15: Wins=${user.win_loss_details[15].W} Loss=${user.win_loss_details[15].L}\n\n` +
+        `Words played:\n` +
+        `${user.words_played.join(" || ")}`
+
+    console.clear();
 }
 
-async function UserRecordsScreen() {
+async function userRecordsScreen() {
     const recordsScreen = await inquirer.prompt({
         name: 'recordsScreenOption',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: `\n\n\n`,
         message: 'Press Enter to Return to the Main Menu:',
         choices: ["Return to main menu"]
     })
@@ -741,7 +746,7 @@ async function resetToDefaultSettings() {
         name: 'reset_to_default',
         type: 'list',
         prefix: MAIN_MENU_LINES,
-        message: 'Select an Option Below Using the Arrow Keys and Return Key:',
+        message: 'Are you Sure You Want to Reset your Settings to Default?:',
         choices: [
             {
                 name: 'Yes',
@@ -773,6 +778,11 @@ async function editWordLength() {
         })
     }
 
+    newChoices.push({
+        name: "Return to Settings Menu",
+        short: "Nevermind about this!"
+    })
+
     const wordLengthAnswer = await inquirer.prompt({
         name: 'wordLengthSelection',
         type: 'list',
@@ -782,9 +792,11 @@ async function editWordLength() {
         choices: newChoices
     });
 
-    user.settings.word_length = wordLengthAnswer.wordLengthSelection
-    if (user.settings.hints >= user.settings.word_length - 1) {
-        user.settings.hints = user.settings.word_length - 2
+    if (wordLengthAnswer.wordLengthSelection !== "Return to Settings Menu") {
+        user.settings.word_length = wordLengthAnswer.wordLengthSelection
+        if (user.settings.hints >= user.settings.word_length - 1) {
+            user.settings.hints = user.settings.word_length - 2
+        }
     }
     await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
     updateSettingsText();
@@ -804,6 +816,11 @@ async function editWordHints() {
         })
     }
 
+    newChoices.push({
+        name: "Return to Settings Menu",
+        short: "Nevermind about this!"
+    })
+
     const wordHintsAnswer = await inquirer.prompt({
         name: 'wordHintsSelection',
         type: 'list',
@@ -813,7 +830,10 @@ async function editWordHints() {
         choices: newChoices
     });
 
-    user.settings.hints = wordHintsAnswer.wordHintsSelection
+    if (wordHintsAnswer.wordHintsSelection !== "Return to Settings Menu") {
+        user.settings.hints = wordHintsAnswer.wordHintsSelection
+    }
+
     await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
     updateSettingsText();
     await titleBlock(settingsText, settings);
@@ -821,12 +841,17 @@ async function editWordHints() {
 
 async function editSkipInstructions() {
     const currentSelection = user.settings.show_instructions;
+
+    const returnToMenuOption = {
+        name: `Return To Menu`,
+        short: `Nevermind about this!`
+    }
     
-    let skipInstructionsOption = {
+    const skipInstructionsOption = {
         name: `Yes`,
         short: `No More Instructions For You!`
     }
-    let doNotSkipInstructionsOption = {
+    const doNotSkipInstructionsOption = {
         name: `No`,
         short: `All of the Instructions!`
     }
@@ -838,7 +863,7 @@ async function editSkipInstructions() {
         defaultOption = `Yes`
     }
 
-    let newChoices = [skipInstructionsOption, doNotSkipInstructionsOption];
+    let newChoices = [skipInstructionsOption, doNotSkipInstructionsOption, returnToMenuOption];
 
     const skipInstructionsAnswer = await inquirer.prompt({
         name: 'skipInstructionsSelection',
@@ -851,7 +876,7 @@ async function editSkipInstructions() {
 
     if (skipInstructionsAnswer.skipInstructionsSelection === `Yes`) {
         user.settings.show_instructions = false
-    } else {
+    } else if (skipInstructionsAnswer.skipInstructionsSelection === `No`) {
         user.settings.show_instructions = true
     }
 
@@ -862,12 +887,17 @@ async function editSkipInstructions() {
 
 async function editRepeatWords() {
     const currentSelection = user.settings.allow_repeats;
+
+    const returnToMenuOption = {
+        name: `Return To Menu`,
+        short: `Nevermind about this!`
+    }
     
-    let allowRepeatsOption = {
+    const allowRepeatsOption = {
         name: `Yes`,
         short: `Deja Vu?!`
     }
-    let doNotAllowRepeatsOption = {
+    const doNotAllowRepeatsOption = {
         name: `No`,
         short: `Let's Get Fresh Words in Here!`
     }
@@ -879,7 +909,7 @@ async function editRepeatWords() {
         defaultOption = `No`
     }
 
-    let newChoices = [allowRepeatsOption, doNotAllowRepeatsOption];
+    let newChoices = [allowRepeatsOption, doNotAllowRepeatsOption, returnToMenuOption];
 
     const editRepeatsAnswer = await inquirer.prompt({
         name: 'editRepeatsSelection',
@@ -892,7 +922,7 @@ async function editRepeatWords() {
 
     if (editRepeatsAnswer.editRepeatsSelection === `Yes`) {
         user.settings.allow_repeats = true
-    } else {
+    } else if (editRepeatsAnswer.editRepeatsSelection === `No`) {
         user.settings.allow_repeats = false
     }
 
@@ -1001,7 +1031,7 @@ function updateSettingsText() {
 
     settingsText = `Current Settings:\n` +
     `Word Length: ${user.settings.word_length}\nHints: ${user.settings.hints}\n` +
-    `Instructions Before Game: ${instructionsBeforeGame}\n` +
+    `Instructions Shown Before Game: ${instructionsBeforeGame}\n` +
     `Allow Repeat Words: ${allowRepeats}`
 }
 

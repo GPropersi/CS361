@@ -25,9 +25,6 @@ const CLI_HELP_TEXT = `Possible arguments include:\n` +
     `-game              \tExplains the game!\n` +      // Command explaining the game
     `-h or --help: Provides this help menu`
 
-/*
-TODO: CLI Implementation
-*/
 const VALID_COMMANDS = ["r", "register", "g", "get", "m", "w", "W", "game", "h", "help"];
 const VALID_SETTINGS = ["word_length", "hints", "show_instructions", "allow_repeats"];
 const VALID_BOOLEANS = ["true", "false"];
@@ -121,6 +118,10 @@ export async function parseCommandLineArguments(passedArguments) {
             await getAWord(passedArguments)
             break;
         }
+        case "game": {
+            console.log("User wants a game explanation!")
+            showGameHelp();
+        }
         case "h":
         case "help": {
             console.log(chalk.greenBright(CLI_HELP_TEXT))
@@ -131,6 +132,30 @@ export async function parseCommandLineArguments(passedArguments) {
             process.exit(1);
         }
     }
+}
+
+function showGameHelp(){
+    const GAME_HELP_TEXT = `Welcome to.... Guess The Word!!\n\n` + 
+    `You can move around in the menus using your arrow keys, typing when necessary!\n` +
+    `If you want to keep track of your wins/losses and user settings, set up a username. No password needed!\n` +
+    `Otherwise, feel free to play as a guest just to mess around and guess for fun!\n` +
+    `You can alter most settings via the "Settings" menu in game - note that these won't be saved if you're a guest.\n` +
+    `The length of words you can guess are from 3 letters, to 15 letters long!\n` + 
+    `You are allowed to set your number of hints given to you during the game, up to a max number of hints of\n\tword length minus 2!\n` +
+    `The objective of the game is to guess a word by inputting letters, one at a time.\n` +
+    `The number of guesses you get is the number of letters in the word, plus 2.\n\n` + 
+    `At anytime during the game, if you need a hint, type "/hint", and a random correct letter will be given to you!\n` + 
+    `Hints do not count towards your guesses!\n` + 
+    `If there are multiple instances of that same letter, all will be given to you!\n\n` +
+    `During the game, type in a single letter and press the return key to guess the letter.\n` + 
+    `An error will pop up if you guess anything but a letter, or a letter that was already guessed.\n\n` +
+    `The program also has a Command Line Interface - try passing "-h" or "-help" as an argument to get more info!\n` +
+    `Type "/help" during the game to bring up the game instructions.\n` +
+    `Have fun guessing!\n`
+
+    console.clear();
+    console.log(chalk.cyanBright(GAME_HELP_TEXT));
+    process.exit(0);
 }
 
 function registerNewUser(passedArguments) {
@@ -298,7 +323,9 @@ function readAllUserInfo(username) {
         `9: Wins=${user.win_loss_details[9].W} Loss=${user.win_loss_details[9].L}  || 10: Wins=${user.win_loss_details[10].W} Loss=${user.win_loss_details[10].L}\n` +
         `11: Wins=${user.win_loss_details[11].W} Loss=${user.win_loss_details[11].L} || 12: Wins=${user.win_loss_details[12].W} Loss=${user.win_loss_details[12].L}\n` +
         `13: Wins=${user.win_loss_details[13].W} Loss=${user.win_loss_details[13].L} || 14: Wins=${user.win_loss_details[14].W} Loss=${user.win_loss_details[14].L}\n` +
-        `15: Wins=${user.win_loss_details[15].W} Loss=${user.win_loss_details[15].L}\n`
+        `15: Wins=${user.win_loss_details[15].W} Loss=${user.win_loss_details[15].L}\n\n` +
+        `Words played:\n` +
+        `${user.words_played.join(" || ")}`
     ))
 
     process.exit(0)
