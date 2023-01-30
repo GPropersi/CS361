@@ -24,7 +24,8 @@ const HELP_TEXT = `\n\n` +
     `Note that the max number of hints you can have is the length of the word, minus 2.\n\n` +
     `During the game, type in a single letter and press the return key to guess the letter.\n` + 
     `An error will pop up if you guess anything but a letter, or a letter that was already guessed.\n\n` +
-    `Type "/help" to bring up this help menu again!`
+    `Type "/help" to bring up this help menu again!\n` + 
+    `Type "/exit" to return to the main menu.`
 
 const GUEST = 'WordGuesser3000';
 const USERFILE = "./db_files/users.json";
@@ -44,14 +45,8 @@ let menuChoice;
 let menuSelection;
 let letsPlay = true;
 let isPlaying = false;
+let isSetting = false;
 let userRecords;
-
-let defaultSettings = {
-    word_length: 5,
-    hints: 2,
-    show_instructions: true,
-    allow_repeats: true,
-}
 
 let user = {
     username: GUEST,
@@ -206,7 +201,7 @@ async function loginOrRegister(){
 }
 
 async function getUserOrCreateUser(usernameToCheck) {
-    await showLoadingSpinner("Getting User Ready...");
+    await showLoadingSpinner("Getting User Ready...", 500);
 
     let originalUserDataRaw;
     try {
@@ -298,10 +293,13 @@ async function mainMenu() {
 async function handleMenu(menuOption) {
     switch (menuOption) {
         case 'Settings': {
-            await showLoadingSpinner('Loading Settings...');
+            await showLoadingSpinner('Loading Settings...', 500);
             updateSettingsText();
-            console.clear()
-            await titleBlock(settingsText, settings);
+            console.clear();
+            isSetting = true;
+            while (isSetting) {
+                await titleBlock(settingsText, settings);
+            }
             break;
         }
         case 'Exit': {
@@ -311,7 +309,7 @@ async function handleMenu(menuOption) {
         }
         case 'Save and Exit': {
             await saveUserData();
-            await showLoadingSpinner('Saving User Data...');
+            await showLoadingSpinner('Saving User Data...', 500);
             console.clear();
             process.exit(0);
             break;
@@ -482,8 +480,13 @@ async function runGame() {
                 }
                 break;
             }
+            case "exit": {
+                // Returns user to main menu
+                isPlaying = false;
+                break;
+            }
             default: {
-                await showLoadingSpinner(`Invalid command... use "/help" for help or "/hint" for a hint`, 2000, false, `Invalid command... use "/help" for help or "/hint" for a hint`);
+                await showLoadingSpinner(`Invalid command... use "/help" for help, "/hint" for a hint, "/exit" to return to main menu`, 2000, false, `Invalid command... use "/help" for help or "/hint" for a hint`);
                 break
             }
         }
@@ -671,6 +674,10 @@ async function afterGameScreenMenu() {
 }
 
 async function settings() {
+    if (currentUsername !== GUEST) {
+        await saveUserData();
+    }
+
     const settingsAnswer = await inquirer.prompt({
         name: 'settings_selection',
         type: 'list',
@@ -726,11 +733,12 @@ async function settings() {
             break;
         }
         case 'Set Settings to Default': {
-            user.settings = defaultSettings;
             await titleBlock('Are you Sure You Want to Reset your Settings to Default?', resetToDefaultSettings)
+            updateSettingsText();
             break;
         }
         case 'Save and Return to Menu': {
+            isSetting = false;
             await showLoadingSpinner('Saving Settings...', SETTINGS_DELAY);
             if (currentUsername !== GUEST) {
                 await saveUserData();
@@ -742,7 +750,7 @@ async function settings() {
 }
 
 async function resetToDefaultSettings() {
-    const wordLengthAnswer = await inquirer.prompt({
+    const defaultSettingsAnswer = await inquirer.prompt({
         name: 'reset_to_default',
         type: 'list',
         prefix: MAIN_MENU_LINES,
@@ -758,13 +766,19 @@ async function resetToDefaultSettings() {
             },],
     });
 
-    if (wordLengthAnswer.reset_to_default === 'Yes'){
-        user.settings = defaultSettings;
-
+    if (defaultSettingsAnswer.reset_to_default === 'Yes'){
+        resetSettingsToDefaultSettings();
     }
     await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
     updateSettingsText();
     await titleBlock(settingsText, settings);
+}
+
+function resetSettingsToDefaultSettings() {
+    user.settings.allow_repeats = true;
+    user.settings.word_length = 5;
+    user.settings.hints = 2;
+    user.settings.allow_repeats = true;
 }
 
 async function editWordLength() {
@@ -1006,7 +1020,7 @@ function updateBottomTitleMainMenuText() {
 }
 
 function updateBottomTitleGameText() {
-    bottomTitleTextGame = `Type /help for help! Type /hint for a hint!\n` +
+    bottomTitleTextGame = `Type /help for help! Type /hint for a hint! Type /exit to return to main menu\n` +
         `Letters Guessed: ${gameData.letters_guessed.join(",")}\n` + 
         `Guesses Left: ${gameData.guesses}\n` +
         `Hints Left: ${gameData.hints_left}\n\n` +

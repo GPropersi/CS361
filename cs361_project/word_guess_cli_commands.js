@@ -151,6 +151,7 @@ function showGameHelp(){
     `An error will pop up if you guess anything but a letter, or a letter that was already guessed.\n\n` +
     `The program also has a Command Line Interface - try passing "-h" or "-help" as an argument to get more info!\n` +
     `Type "/help" during the game to bring up the game instructions.\n` +
+    `Type "/exit" during the game to return to the main menu.\n` +
     `Have fun guessing!\n`
 
     console.clear();
