@@ -31,6 +31,7 @@ const GUEST = 'WordGuesser3000';
 const USERFILE = "./db_files/users.json";
 const DB_FOLDER = "./db_files";
 const PIPE_TO_API = "./listener_for_random_word.json";
+const PARTNER_MICROSERVICE = "./service.txt"
 const MIN_WORD_LENGTH = 3;
 const MAX_WORD_LENGTH = 15;
 const MAIN_MENU_LINES = '\n\n\n\n\n\n\n\n\n\n';
@@ -253,6 +254,7 @@ async function mainMenuGuest() {
         message: 'Select an Option Below Using the Return Key:',
         choices: [
         'Guess A Word!',
+        'Guess A Random Length Word!',
         'Settings',
         'Exit'
         ],
@@ -271,6 +273,10 @@ async function mainMenu() {
         {
             name: 'Guess A Word!',
             short: `Let's Play!`
+        },
+        {
+            name: 'Guess A Random Length Word!',
+            short: `Let's Play, Randomly!`
         },
         {
             name: 'Settings',
@@ -317,6 +323,11 @@ async function handleMenu(menuOption) {
         case 'Guess A Word!': {
             isPlaying = true;
             await requestWord();
+            break;
+        }
+        case 'Guess A Random Length Word!': {
+            isPlaying = true;
+            await requestRandomWord();
             break;
         }
         case 'Records' : {
@@ -371,6 +382,57 @@ async function userRecordsScreen() {
         message: 'Press Enter to Return to the Main Menu:',
         choices: ["Return to main menu"]
     })
+}
+
+async function requestRandomWord() {
+    let waitingForWord = true;
+    let pipeData;
+
+    while (waitingForWord) {
+
+        try {
+            await fs.promises.writeFile(PARTNER_MICROSERVICE, "run");
+        } catch (err) {
+            console.error(`Error - game needs ${PARTNER_MICROSERVICE} file`);
+            process.exit(1);
+        }
+
+        await showLoadingSpinner(`Requesting a R-A-N-D-O-M letter word...`, 1500)
+        try {
+            let newWord;
+            pipeData = await fs.promises.readFile(PARTNER_MICROSERVICE, 'utf-8');
+            newWord = pipeData.replace(/[^\w\s]/gi, '');
+            newWord = newWord.replace((/  |\r\n|\n|\r/gm),"");
+
+            // await helpBlock(newWord.length);
+            // await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
+            wordToGuess = newWord;
+
+            if (!user.settings.allow_repeats && user.words_played.includes(newWord)) {
+                await showLoadingSpinner(`${newWord} has already been played, trying again...`, 500, true);
+            } else {
+                waitingForWord = false;
+                gameData.word_array = newWord.split("");
+                gameData.hints_left = user.settings.hints;
+                gameData.guesses = newWord.length + 2;
+                gameData.letters_guessed = [];
+                for (let i = 0; i < newWord.length; i++) {
+                    gameData.correct_letters[i] = "_"
+                }
+
+                await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
+
+                if (user.settings.show_instructions) {
+                    await helpBlock(HELP_TEXT);
+                }
+            }
+
+        } catch (err) {
+            await showLoadingSpinner(`Error`, 1500, false, err);
+            console.error(`Error reading ${PARTNER_MICROSERVICE} for word`);
+            process.exit(1);
+        }
+    }
 }
 
 async function requestWord() {
