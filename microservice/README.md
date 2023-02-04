@@ -23,4 +23,4 @@ As the end user, you will only need to read the text file for the randomly gener
 
 # UML Sequence Diagram
 
-[[/CS361_UML_Diagram_Random_Number_Generator.png]]
+![UML Sequence Diagram for Microservice](CS361_UML_Diagram_Random_Number_Generator.png)
