@@ -1,100 +1,21 @@
 import inquirer from "inquirer";
 import figlet from "figlet";
 import chalk from "chalk";
-import chalkAnimation from "chalk-animation";
 import gradient from "gradient-string";
-import align_text from "align-text";
 import center_align from "center-align";
 import fs from 'fs';
 import { createSpinner } from "nanospinner";
 import PressToContinuePrompt from "inquirer-press-to-continue";
 import { parseCommandLineArguments } from "./word_guess_cli_commands.js";
+import { CONSTANTS, newGameData, newUserOrGuest} from "./constants.js";
+import { HELP_TEXT, TEXTS } from "./text_objects.js";
+import txtFuncs from "./title_text.js";
 
 inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
 const sleep = (ms = 1500) => new Promise((r) => setTimeout(r, ms));
 
-const HELP_TEXT = `\n\n` + 
-    `Welcome to.... Guess The Word!!\n\n` + 
-    `The objective of the game is to guess a word by inputting letters, one at a time.\n` +
-    `The number of guesses you get is the number of letters in the word, plus 2.\n\n` + 
-    `At anytime during the game, if you need a hint, type "/hint", and a random correct letter will be given to you!\n` +
-    `Hints do not count towards your guesses!\n` + 
-    `If there are multiple instances of that same letter, all will be given to you!\n\n` +
-    `You can set how long of a word you want to guess, and how many hints you receive\n from the "Settings" screen on the Main Menu!\n\n` +
-    `Note that the max number of hints you can have is the length of the word, minus 2.\n\n` +
-    `During the game, type in a single letter and press the return key to guess the letter.\n` + 
-    `An error will pop up if you guess anything but a letter, or a letter that was already guessed.\n\n` +
-    `Type "/help" to bring up this help menu again!\n` + 
-    `Type "/exit" to return to the main menu.`
-
-const GUEST = 'WordGuesser3000';
-const USERFILE = "./db_files/users.json";
-const DB_FOLDER = "./db_files";
-const PIPE_TO_API = "./listener_for_random_word.json";
-const PARTNER_MICROSERVICE = "./service.txt"
-const MIN_WORD_LENGTH = 3;
-const MAX_WORD_LENGTH = 15;
-const MAIN_MENU_LINES = '\n\n\n\n\n\n\n\n\n\n';
-const SETTINGS_DELAY = 30;
-
-let wordToGuess;
-let bottomTitleTextMainMenu;
-let bottomTitleTextGame;
-let settingsText;
-let currentUsername;
-let menuChoice;
-let menuSelection;
-let letsPlay = true;
-let isPlaying = false;
-let isSetting = false;
-let userRecords;
-
-let user = {
-    username: GUEST,
-    wins: 0,
-    losses: 0,
-    settings: {
-        word_length: 5,
-        hints: 2,
-        show_instructions: true,
-        allow_repeats: true,
-    },
-    win_loss_details: {
-        3: {W: 0, L: 0},
-        4: {W: 0, L: 0},
-        5: {W: 0, L: 0},
-        6: {W: 0, L: 0},
-        7: {W: 0, L: 0},
-        8: {W: 0, L: 0},
-        9: {W: 0, L: 0},
-        10: {W: 0, L: 0},
-        11: {W: 0, L: 0},
-        12: {W: 0, L: 0},
-        13: {W: 0, L: 0},
-        14: {W: 0, L: 0},
-        15: {W: 0, L: 0},
-    },
-    words_played: [],
-}
-
-let wordRequest = {
-    request: {
-        word_needed: false,
-        word_length: 0
-    },
-    response: {
-        word: null,
-        new_word: false
-    }
-}
-
-let gameData = {
-    letters_guessed: [],
-    hints_left: -1,
-    word_array: [],
-    correct_letters: [],
-    guesses: -1,
-}
+let user = newUserOrGuest;
+let gameData = newGameData;
 
 function titleBlockMain() {
     console.clear()
@@ -108,21 +29,14 @@ function titleBlockMain() {
 async function titleBlock(underTitleText, toDoNext, blue = false) {
     console.clear();
     titleBlockMain();
+    let textForTitle;
+    textForTitle = chalk.greenBright(center_align(`${underTitleText}\n`, 110));
+
     if (blue) {
-        console.log(chalk.cyanBright(
-            center_align(
-                `${underTitleText}\n`, 
-                110
-            )
-        ));
-    } else {
-        console.log(chalk.greenBright(
-            center_align(
-                `${underTitleText}\n`, 
-                110
-            )
-        ));
+        textForTitle = chalk.cyanBright(center_align(`${underTitleText}\n`, 110))
     }
+
+    console.log(textForTitle);
     await toDoNext();
 }
 
@@ -145,17 +59,15 @@ async function helpBlock(underTitleText) {
 }
 
 async function askIfGuest() {
+    const guestAns = 'Play as Guest -- Jump Right In!';
     const answers = await inquirer.prompt({
         name: 'type_of_user',
         type: 'list',
         prefix: '\n\n\n\n',
-        message: '\n\n\n#############################################################################' + 
-                     '\n## Registering or Logging in will save your Wins/Losses and User Settings. ##\n' +
-                       '## Guests will not have their Wins/Losses and User Settings saved.         ##\n' +
-                       '#############################################################################\n',
+        message: TEXTS.GUEST_TEXT,
         choices: [
         'Login/Register with Username',
-        'Play as Guest -- Jump Right In!',
+        guestAns,
         'Exit'
         ],
     });
@@ -165,16 +77,11 @@ async function askIfGuest() {
         process.exit(0);
     }
 
-    await handleIfGuestOrUser(
-        answers.type_of_user === 'Play as Guest -- Jump Right In!', 
-    )
+    await handleIfGuestOrUser(answers.type_of_user === guestAns)
 }
 
 async function handleIfGuestOrUser(isGuest){
-    if (isGuest) {
-        currentUsername = GUEST;
-        return;
-    } else {
+    if (!isGuest) {
         const underTitleText = `Login/Register Below!\n` +
             `If You Haven't Made a Username Already, It Will Be Saved For You!`
         await titleBlock(underTitleText, loginOrRegister);
@@ -197,8 +104,7 @@ async function loginOrRegister(){
             return 'Please enter a username, 3-29 characters in length, only alphanumeric or underscores allowed.\nMust start with a letter.';            
         }
     });
-    currentUsername = answer.user_username;
-    await getUserOrCreateUser(currentUsername)
+    await getUserOrCreateUser(answer.user_username)
 }
 
 async function getUserOrCreateUser(usernameToCheck) {
@@ -206,7 +112,7 @@ async function getUserOrCreateUser(usernameToCheck) {
 
     let originalUserDataRaw;
     try {
-        originalUserDataRaw = await fs.promises.readFile(USERFILE, 'utf8');
+        originalUserDataRaw = await fs.promises.readFile(CONSTANTS.USERFILE, 'utf8');
     } catch (err) {
         console.error("Error - unable to read the user file");
         process.exit(1);
@@ -226,7 +132,7 @@ async function getUserOrCreateUser(usernameToCheck) {
     originalUserData.push(user)
 
     try {
-        await fs.promises.writeFile(USERFILE, JSON.stringify(originalUserData));
+        await fs.promises.writeFile(CONSTANTS.USERFILE, JSON.stringify(originalUserData));
     } catch (err) {
         console.error("Unable to append user data to database");
         process.exit(1)
@@ -250,7 +156,7 @@ async function mainMenuGuest() {
     const answers = await inquirer.prompt({
         name: 'main_menu_option',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         message: 'Select an Option Below Using the Return Key:',
         choices: [
         'Guess A Word!',
@@ -260,14 +166,14 @@ async function mainMenuGuest() {
         ],
     });
 
-    menuSelection = answers.main_menu_option;
+    gameData.menuSelection = answers.main_menu_option;
 }
 
 async function mainMenu() {
     const answers = await inquirer.prompt({
         name: 'main_menu_option',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         message: 'Select an Option Below Using the Return Key:',
         choices: [
         {
@@ -293,17 +199,17 @@ async function mainMenu() {
         ],
     });
 
-    menuSelection = answers.main_menu_option;
+    gameData.menuSelection = answers.main_menu_option;
 }
 
 async function handleMenu(menuOption) {
     switch (menuOption) {
         case 'Settings': {
             await showLoadingSpinner('Loading Settings...', 500);
-            updateSettingsText();
+            let settingsText = txtFuncs.updateSettingsText(user);
             console.clear();
-            isSetting = true;
-            while (isSetting) {
+            gameData.isSetting = true;
+            while (gameData.isSetting) {
                 await titleBlock(settingsText, settings);
             }
             break;
@@ -321,19 +227,19 @@ async function handleMenu(menuOption) {
             break;
         }
         case 'Guess A Word!': {
-            isPlaying = true;
+            gameData.isPlaying = true;
             await requestWord();
             break;
         }
         case 'Guess A Random Length Word!': {
-            isPlaying = true;
+            gameData.isPlaying = true;
             await requestRandomWord();
             break;
         }
         case 'Records' : {
             await showLoadingSpinner('Getting your records...');
             console.clear();
-            updateUserRecords();
+            const userRecords = updateUserRecords();
             await titleBlock(userRecords, userRecordsScreen, true);
             break;
         }
@@ -341,37 +247,38 @@ async function handleMenu(menuOption) {
 }
 
 function updateUserRecords() {
-    let wantsInstructions;
-    let wantsRepeats;
+    let wantsInstructions = "No";
+    let wantsRepeats = "No";
 
     if (user.settings.allow_repeats) {
         wantsRepeats = "Yes";
-    } else {
-        wantsRepeats = "No";
     }
 
     if (user.settings.show_instructions) {
         wantsInstructions = "Yes";
-    } else {
-        wantsInstructions = "No";
     }
 
-    userRecords = `Username: ${user.username}\n` +
+    let userRecords = `Username: ${user.username}\n` +
         `Total Wins: ${user.wins}\tTotal Losses: ${user.losses}\n` +
         `Current Word Length: ${user.settings.word_length}\t Current Hints: ${user.settings.hints}\n` +
         `Wants Instructions Before Game: ${wantsInstructions}\t Allows Repeat Words: ${wantsRepeats}\n` +
-        `Specific Word Length Game Statistics:\n\n` +
-        `3: Wins=${user.win_loss_details[3].W} Loss=${user.win_loss_details[3].L}  || 4: Wins=${user.win_loss_details[4].W} Loss=${user.win_loss_details[4].L}\n` +
-        `5: Wins=${user.win_loss_details[5].W} Loss=${user.win_loss_details[5].L}  || 6: Wins=${user.win_loss_details[6].W} Loss=${user.win_loss_details[6].L}\n` +
-        `7: Wins=${user.win_loss_details[7].W} Loss=${user.win_loss_details[7].L}  || 8: Wins=${user.win_loss_details[8].W} Loss=${user.win_loss_details[8].L}\n` +
-        `9: Wins=${user.win_loss_details[9].W} Loss=${user.win_loss_details[9].L}  || 10: Wins=${user.win_loss_details[10].W} Loss=${user.win_loss_details[10].L}\n` +
-        `11: Wins=${user.win_loss_details[11].W} Loss=${user.win_loss_details[11].L} || 12: Wins=${user.win_loss_details[12].W} Loss=${user.win_loss_details[12].L}\n` +
-        `13: Wins=${user.win_loss_details[13].W} Loss=${user.win_loss_details[13].L} || 14: Wins=${user.win_loss_details[14].W} Loss=${user.win_loss_details[14].L}\n` +
-        `15: Wins=${user.win_loss_details[15].W} Loss=${user.win_loss_details[15].L}\n\n` +
-        `Words played:\n` +
-        `${user.words_played.join(" || ")}`
+        `Specific Word Length Game Statistics:\n\n` 
+
+    for (let i = CONSTANTS.MIN_WORD_LENGTH; i <= CONSTANTS.MAX_WORD_LENGTH; i++) {
+        userRecords += ` ${i}: Wins=${user.win_loss_details[i].W} `
+        userRecords += `Loss=${user.win_loss_details[i].L} `
+
+        if (i % 2 == 0){
+            userRecords += `\n`
+        } else if (i != CONSTANTS.MAX_WORD_LENGTH ) {
+            userRecords += ` ||`
+        }
+    }
+    userRecords += `\n${user.words_played.join(" || ")}`
 
     console.clear();
+
+    return userRecords;
 }
 
 async function userRecordsScreen() {
@@ -384,42 +291,44 @@ async function userRecordsScreen() {
     })
 }
 
+function assignGameDataWithNewWord(newWord) {
+    gameData.correctWord = newWord;
+    gameData.word_array = newWord.split("");
+    gameData.hints_left = user.settings.hints;
+    gameData.guesses = newWord.length + 2;
+    gameData.letters_guessed = [];
+    for (let i = 0; i < newWord.length; i++) {
+        gameData.correct_letters[i] = "_"
+    }  
+}
+
 async function requestRandomWord() {
     let waitingForWord = true;
-    let pipeData;
 
     while (waitingForWord) {
 
         try {
-            await fs.promises.writeFile(PARTNER_MICROSERVICE, "run");
+            await fs.promises.writeFile(CONSTANTS.PARTNER_MICROSERVICE, "run");
         } catch (err) {
-            console.error(`Error - game needs ${PARTNER_MICROSERVICE} file`);
+            console.error(`Error - game needs ${CONSTANTS.PARTNER_MICROSERVICE} file`);
             process.exit(1);
         }
 
         await showLoadingSpinner(`Requesting a R-A-N-D-O-M letter word...`, 1500)
         try {
-            let newWord;
-            pipeData = await fs.promises.readFile(PARTNER_MICROSERVICE, 'utf-8');
-            newWord = pipeData.replace(/[^\w\s]/gi, '');
+            let pipeData = await fs.promises.readFile(CONSTANTS.PARTNER_MICROSERVICE, 'utf-8');
+            let newWord = pipeData.replace(/[^\w\s]/gi, '');
             newWord = newWord.replace((/  |\r\n|\n|\r/gm),"");
 
-            // await helpBlock(newWord.length);
-            // await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
-            wordToGuess = newWord;
-
             if (!user.settings.allow_repeats && user.words_played.includes(newWord)) {
-                await showLoadingSpinner(`${newWord} has already been played, trying again...`, 500, true);
+                await showLoadingSpinner(
+                    `${newWord} has already been played, trying again...`, 
+                    500, 
+                    true);
             } else {
                 waitingForWord = false;
-                gameData.word_array = newWord.split("");
-                gameData.hints_left = user.settings.hints;
-                gameData.guesses = newWord.length + 2;
-                gameData.letters_guessed = [];
-                for (let i = 0; i < newWord.length; i++) {
-                    gameData.correct_letters[i] = "_"
-                }
-
+                assignGameDataWithNewWord(newWord);
+                gameData.isRandomGame = true;
                 await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
 
                 if (user.settings.show_instructions) {
@@ -429,57 +338,67 @@ async function requestRandomWord() {
 
         } catch (err) {
             await showLoadingSpinner(`Error`, 1500, false, err);
-            console.error(`Error reading ${PARTNER_MICROSERVICE} for word`);
+            console.error(`Error reading ${CONSTANTS.PARTNER_MICROSERVICE} for word`);
             process.exit(1);
         }
     }
 }
 
 async function requestWord() {
-    wordRequest.request.word_needed = true
-    wordRequest.request.word_length = user.settings.word_length
+    let wordRequest = {
+        request: {
+            word_needed: true,
+            word_length: user.settings.word_length
+        },
+        response: {
+            word: null,
+            new_word: false
+        }
+    }
 
     let waitingForWord = true;
-    let pipeData;
-
     while (waitingForWord) {
 
         try {
-            await fs.promises.writeFile(PIPE_TO_API, JSON.stringify(wordRequest));
+            await fs.promises.writeFile(CONSTANTS.PIPE_TO_API, JSON.stringify(wordRequest));
         } catch (err) {
-            console.error(`Error - game needs ${PIPE_TO_API} file`);
+            console.error(`Error - game needs ${CONSTANTS.PIPE_TO_API} file`);
             process.exit(1);
         }
 
         await showLoadingSpinner(`Requesting a ${user.settings.word_length} letter word...`, 1500)
         try {
-            pipeData = await fs.promises.readFile(PIPE_TO_API);
+            let pipeData = await fs.promises.readFile(CONSTANTS.PIPE_TO_API);
             wordRequest = JSON.parse(pipeData);
 
-            if (wordRequest.response.word !== null && wordRequest.response.new_word) {
-                wordToGuess = wordRequest.response.word;
-                if (!user.settings.allow_repeats && user.words_played.includes(wordToGuess)) {
-                    await showLoadingSpinner(`${wordToGuess} has already been played, trying again...`, 500, true);
-                } else {
-                    waitingForWord = false;
-                    gameData.word_array = wordToGuess.split("");
-                    gameData.hints_left = user.settings.hints;
-                    gameData.guesses = wordToGuess.length + 2;
-                    gameData.letters_guessed = [];
-                    for (let i = 0; i < wordToGuess.length; i++) {
-                        gameData.correct_letters[i] = "_"
-                    }
-    
-                    await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
-    
-                    if (user.settings.show_instructions) {
-                        await helpBlock(HELP_TEXT);
-                    }
-                }
+            if (wordRequest.response.word === null || !wordRequest.response.new_word) {
+                console.error(`Unable to process new word.`);
+                process.exit(1);
             }
+
+            let wordToGuess = wordRequest.response.word;
+
+            if (user.settings.allow_repeats || !user.words_played.includes(wordToGuess)) {
+                waitingForWord = false;
+                assignGameDataWithNewWord(wordToGuess);
+                gameData.isRandomGame = false;
+
+                await showLoadingSpinner(`Word found! Get Ready..`, 1000, true);
+
+                if (user.settings.show_instructions) {
+                    await helpBlock(HELP_TEXT);
+                }
+
+            } else {
+                await showLoadingSpinner(
+                    `${wordToGuess} has already been played, trying again...`, 
+                    500, 
+                    true
+                    );
+            }            
         } catch (err) {
             await showLoadingSpinner(`Error`, 1500, false, err);
-            console.error(`Error reading ${PIPE_TO_API} for word`);
+            console.error(`Error reading ${CONSTANTS.PIPE_TO_API} for word`);
             process.exit(1);
         }
     }
@@ -505,57 +424,19 @@ async function runGame() {
                 return `You already guessed "${value[0]}"`
             }
 
-            return true
+            return true;
         }       
     })
 
     const lettGuess = guessingGame.game_guess[0].toLowerCase();
     const letterInWord = gameData.word_array.includes(lettGuess);
     
-    if (lettGuess === '/') {
+    if (lettGuess === '/') { 
         let command = guessingGame.game_guess.split("/")[1].toLowerCase();
-
-        switch (command) {
-            case "help": {
-                await helpBlock(HELP_TEXT);
-                break
-            }
-            case "hint": {
-                // Hint goes here;
-                if (gameData.hints_left === 0) {
-                    await showLoadingSpinner(`Checking for hints...`, 500, false, `No more hints left...`, 1500);
-                } else {
-                    gameData.hints_left -= 1
-                    giveHint();
-
-                    if (checkIfWordGuessed()){
-                        await showLoadingSpinner(`Correctly guessed the word!`, 1500)
-                        const currentWordLength = user.settings.word_length.toString();
-                        user.wins += 1
-                        user.win_loss_details[currentWordLength].W += 1
-                        user.words_played.push(gameData.word_array.join(""))
-                        if (user.username !== GUEST) {
-                            await saveUserData();
-                        }
-                        await winningScreen();
-                    }
-                }
-                break;
-            }
-            case "exit": {
-                // Returns user to main menu
-                isPlaying = false;
-                break;
-            }
-            default: {
-                await showLoadingSpinner(`Invalid command... use "/help" for help, "/hint" for a hint, "/exit" to return to main menu`, 2000, false, `Invalid command... use "/help" for help or "/hint" for a hint`);
-                break
-            }
-        }
+        await handleInGameCommand(command);
     } else if (letterInWord) {
-        gameData.guesses -= 1
-        gameData.letters_guessed.push(lettGuess);
-        gameData.letters_guessed.sort();
+
+        handleGuessedLetter(lettGuess);
         for (let i = 0; i < gameData.word_array.length; i++) {
             if (gameData.word_array[i] === lettGuess) {
                 gameData.correct_letters[i] = lettGuess
@@ -563,37 +444,62 @@ async function runGame() {
         }
         
         if (checkIfWordGuessed()){
-            await showLoadingSpinner(`Correctly guessed the word!`, 1500)
-            const currentWordLength = user.settings.word_length.toString();
-            user.wins += 1
-            user.win_loss_details[currentWordLength].W += 1
-            user.words_played.push(gameData.word_array.join(""))
-            if (user.username !== GUEST) {
-                await saveUserData();
-            }
-            await winningScreen();
-
+            await handleIfWordGuessed();
         } else {
-            await showLoadingSpinner(`Correctly guessed a letter`, 1250)
+            await showLoadingSpinner(`Correctly guessed a letter`, 800)
         }
     } else if (!letterInWord) {
-        gameData.guesses -= 1
-        gameData.letters_guessed.push(lettGuess);
-        gameData.letters_guessed.sort();
-        await showLoadingSpinner(`Incorrect letter`, 1250)
+        handleGuessedLetter(lettGuess)
+        await showLoadingSpinner(`Incorrect letter`, 800)
     }
 
     if (gameData.guesses === -1) {
         // Game over
-        await showLoadingSpinner(`Game over :(`, 1500)
-        user.losses += 1
-        const currentWordLength = user.settings.word_length.toString();
-        user.win_loss_details[currentWordLength].L += 1
-        if (user.username !== GUEST) {
-            await saveUserData();
-        }
-        await losingScreen();
+        handleIfWordNotGuessed();
     }
+}
+
+function handleGuessedLetter(guessedLetter) {
+    gameData.guesses -= 1
+    gameData.letters_guessed.push(guessedLetter);
+    gameData.letters_guessed.sort();    
+}
+
+async function handleInGameCommand(command){
+    switch (command) {
+        case "help": {
+            await helpBlock(HELP_TEXT);
+            break;
+        }
+        case "hint": {
+            // Hint goes here;
+            if (gameData.hints_left === 0) {
+                await showLoadingSpinner(`Checking for hints...`, 500, false, `No more hints left...`, 1500);
+            } else {
+                gameData.hints_left -= 1
+                giveHint();
+
+                if (checkIfWordGuessed()){
+                    await handleIfWordGuessed();
+                }
+            }
+            break;
+        }
+        case "exit": {
+            // Returns user to main menu
+            gameData.isPlaying = false;
+            break;
+        }
+        default: {
+            await showLoadingSpinner(`Invalid command... use "/help" for help,` +
+                        `"/hint" for a hint, "/exit" to return to main menu`, 
+                        2000, 
+                        false, 
+                        `Invalid command... use "/help" for help or "/hint" for a hint`
+                        );
+            break;
+        }
+    }   
 }
 
 function checkIfWordGuessed(){
@@ -606,20 +512,40 @@ function checkIfWordGuessed(){
 }
 
 function giveHint(){
-    const currentWordLength = user.settings.word_length;
-    let randomNum;
+    let randomNum = -1;
     do {
-        randomNum = getRandomInt(currentWordLength); 
+        randomNum = getRandomInt(gameData.correctWord.length); 
     } while (gameData.correct_letters[randomNum] !== '_');
 
     let charAtRandomNum = gameData.word_array[randomNum];
-    for (let i = 0; i < currentWordLength; i++) {
+    for (let i = 0; i < gameData.correctWord.length; i++) {
         if (gameData.word_array[i] === charAtRandomNum) {
             gameData.correct_letters[i] = charAtRandomNum
         }
     }
 
     gameData.letters_guessed.push(charAtRandomNum);
+}
+
+async function handleIfWordGuessed() {
+    await showLoadingSpinner(`Correctly guessed the word!`, 1500)
+    user.wins += 1
+    user.win_loss_details[gameData.correctWord.length].W += 1
+    user.words_played.push(gameData.word_array.join(""))
+    if (user.username !== CONSTANTS.GUEST) {
+        await saveUserData();
+    }
+    await winningScreen();    
+}
+
+async function handleIfWordNotGuessed() {
+    await showLoadingSpinner(`Game over :(`, 1000)
+    user.losses += 1
+    user.win_loss_details[gameData.correctWord.length].L += 1
+    if (user.username !== CONSTANTS.GUEST) {
+        await saveUserData();
+    }
+    await losingScreen();
 }
 
 function getRandomInt(max) {
@@ -641,7 +567,7 @@ async function winningScreen() {
     console.log(chalk.green(
         center_align(
             `Great job!\nYou Guessed the Word!\n\n` +
-            `The word was: "${wordToGuess}"\n\n` +
+            `The word was: "${gameData.correctWord}"\n\n` +
             `I'd Guess You're Great at This!`, 
             110
         )
@@ -664,7 +590,7 @@ async function losingScreen() {
     console.log(chalk.green(
         center_align(
             `\n\nYou'll Get it Next Time!\n\n` +
-            `The word was: "${wordToGuess}"\n\n`,
+            `The word was: "${gameData.correctWord}"\n\n`,
             110
         )
     ));
@@ -674,7 +600,7 @@ async function losingScreen() {
 async function afterGameScreenMenu() {
     let afterGameChoices;
 
-    if (user.username === GUEST) {
+    if (user.username === CONSTANTS.GUEST) {
         afterGameChoices = [
             {
                 name: 'Play Again?',
@@ -705,28 +631,32 @@ async function afterGameScreenMenu() {
     const answers = await inquirer.prompt({
         name: 'after_game_menu_option',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         message: 'Select an Option Below Using the Return Key:',
         choices: afterGameChoices,
     });
 
-    menuSelection = answers.after_game_menu_option;
-    if (user.username !== GUEST) {
+    // menuSelection = answers.after_game_menu_option;
+    if (user.username !== CONSTANTS.GUEST) {
         await saveUserData();
     }
 
-    switch (menuSelection) {
+    switch (answers.after_game_menu_option) {
         case 'Play Again?': {
-            isPlaying = true;
-            await requestWord();
+            gameData.isPlaying = true;
+            if (gameData.isRandomGame) {
+                await requestRandomWord()
+            } else {
+                await requestWord();
+            }
             break;
         }
         case 'Main Menu': {
-            isPlaying = false;
+            gameData.isPlaying = false;
             break;
         }
         case 'Save and Exit': {
-            isPlaying = false;
+            gameData.isPlaying = false;
             await showLoadingSpinner('Saving User Data', 500);
             console.clear();
             process.exit(0);
@@ -736,14 +666,14 @@ async function afterGameScreenMenu() {
 }
 
 async function settings() {
-    if (currentUsername !== GUEST) {
+    if (user.username !== CONSTANTS.GUEST) {
         await saveUserData();
     }
 
     const settingsAnswer = await inquirer.prompt({
         name: 'settings_selection',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         message: 'Select an Option Below Using the Arrow Keys and Return Key:',
         choices: [
         {
@@ -775,37 +705,36 @@ async function settings() {
     
     switch (settingsAnswer.settings_selection) {
         case 'Word Length': {
-            await showLoadingSpinner(`Getting Current Word Length`, SETTINGS_DELAY);
+            await showLoadingSpinner(`Getting Current Word Length`, CONSTANTS.SETTINGS_DELAY);
             await titleBlock(`Choose Your Word Length\nCurrent Word Length: ${user.settings.word_length}`, editWordLength)
             break;
         }
         case 'Word Hints': {
-            await showLoadingSpinner('Getting Current Number of Word Hints', SETTINGS_DELAY);
+            await showLoadingSpinner('Getting Current Number of Word Hints', CONSTANTS.SETTINGS_DELAY);
             await titleBlock(`Choose Your Number of Hints\nCurrent Number of Hints: ${user.settings.hints}`, editWordHints)
             break;
         }
         case 'Skip Instructions on New Game': {
-            await showLoadingSpinner('Getting Current Selection for Skipping Instructions...', SETTINGS_DELAY);
+            await showLoadingSpinner('Getting Current Selection for Skipping Instructions...', CONSTANTS.SETTINGS_DELAY);
             await titleBlock('Want to Skip the Instructions?', editSkipInstructions)
             break;
         }
         case 'Okay to Repeat Words': {
-            await showLoadingSpinner('Getting Current Selection for Repeating Words...', SETTINGS_DELAY);
+            await showLoadingSpinner('Getting Current Selection for Repeating Words...', CONSTANTS.SETTINGS_DELAY);
             await titleBlock('Want to Allow Words to Repeat?', editRepeatWords)
             break;
         }
         case 'Set Settings to Default': {
             await titleBlock('Are you Sure You Want to Reset your Settings to Default?', resetToDefaultSettings)
-            updateSettingsText();
+            //txtFuncs.updateSettingsText(user);
             break;
         }
         case 'Save and Return to Menu': {
-            isSetting = false;
-            await showLoadingSpinner('Saving Settings...', SETTINGS_DELAY);
-            if (currentUsername !== GUEST) {
+            gameData.isSetting = false;
+            await showLoadingSpinner('Saving Settings...', CONSTANTS.SETTINGS_DELAY);
+            if (user.username !== CONSTANTS.GUEST) {
                 await saveUserData();
             }
-            updateBottomTitleMainMenuText()
             break;
         }
     }
@@ -815,7 +744,7 @@ async function resetToDefaultSettings() {
     const defaultSettingsAnswer = await inquirer.prompt({
         name: 'reset_to_default',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         message: 'Are you Sure You Want to Reset your Settings to Default?:',
         choices: [
             {
@@ -831,8 +760,9 @@ async function resetToDefaultSettings() {
     if (defaultSettingsAnswer.reset_to_default === 'Yes'){
         resetSettingsToDefaultSettings();
     }
-    await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
-    updateSettingsText();
+
+    await showLoadingSpinner('Returning to Settings...', CONSTANTS.SETTINGS_DELAY);
+    const settingsText = txtFuncs.updateSettingsText(user);
     await titleBlock(settingsText, settings);
 }
 
@@ -847,7 +777,7 @@ async function editWordLength() {
     const currentWordLength = user.settings.word_length;
     let newChoices = [];
 
-    for (let i = MIN_WORD_LENGTH; i <= MAX_WORD_LENGTH; i++) {
+    for (let i = CONSTANTS.MIN_WORD_LENGTH; i <= CONSTANTS.MAX_WORD_LENGTH; i++) {
         newChoices.push({
             name: `${i}`,
             short: `You want words ${i} characters long`
@@ -862,7 +792,7 @@ async function editWordLength() {
     const wordLengthAnswer = await inquirer.prompt({
         name: 'wordLengthSelection',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         default: `${currentWordLength}`,
         message: 'Select an Option Below Using the Arrow Keys and Return Key:',
         choices: newChoices
@@ -874,8 +804,8 @@ async function editWordLength() {
             user.settings.hints = user.settings.word_length - 2
         }
     }
-    await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
-    updateSettingsText();
+    await showLoadingSpinner('Returning to Settings...', CONSTANTS.SETTINGS_DELAY);
+    const settingsText = txtFuncs.updateSettingsText(user);
     await titleBlock(settingsText, settings);
 }
 
@@ -900,7 +830,7 @@ async function editWordHints() {
     const wordHintsAnswer = await inquirer.prompt({
         name: 'wordHintsSelection',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         default: `${currentWordHints}`,
         message: 'Select an Option Below Using the Arrow Keys and Return Key:',
         choices: newChoices
@@ -910,8 +840,8 @@ async function editWordHints() {
         user.settings.hints = wordHintsAnswer.wordHintsSelection
     }
 
-    await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
-    updateSettingsText();
+    await showLoadingSpinner('Returning to Settings...', CONSTANTS.SETTINGS_DELAY);
+    const settingsText = txtFuncs.updateSettingsText(user);
     await titleBlock(settingsText, settings);
 }
 
@@ -922,7 +852,6 @@ async function editSkipInstructions() {
         name: `Return To Menu`,
         short: `Nevermind about this!`
     }
-    
     const skipInstructionsOption = {
         name: `Yes`,
         short: `No More Instructions For You!`
@@ -931,12 +860,10 @@ async function editSkipInstructions() {
         name: `No`,
         short: `All of the Instructions!`
     }
-    let defaultOption;
 
+    let defaultOption = `Yes`;
     if (currentSelection) {
         defaultOption = `No`
-    } else {
-        defaultOption = `Yes`
     }
 
     let newChoices = [skipInstructionsOption, doNotSkipInstructionsOption, returnToMenuOption];
@@ -944,7 +871,7 @@ async function editSkipInstructions() {
     const skipInstructionsAnswer = await inquirer.prompt({
         name: 'skipInstructionsSelection',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         default: defaultOption,
         message: 'Want to Skip the Instructions Before Each Game?',
         choices: newChoices
@@ -956,8 +883,8 @@ async function editSkipInstructions() {
         user.settings.show_instructions = true
     }
 
-    await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
-    updateSettingsText();
+    await showLoadingSpinner('Returning to Settings...', CONSTANTS.SETTINGS_DELAY);
+    const settingsText = txtFuncs.updateSettingsText(user);
     await titleBlock(settingsText, settings);
 }
 
@@ -977,12 +904,10 @@ async function editRepeatWords() {
         name: `No`,
         short: `Let's Get Fresh Words in Here!`
     }
-    let defaultOption;
 
+    let defaultOption = `No`;
     if (currentSelection) {
         defaultOption = `Yes`
-    } else {
-        defaultOption = `No`
     }
 
     let newChoices = [allowRepeatsOption, doNotAllowRepeatsOption, returnToMenuOption];
@@ -990,7 +915,7 @@ async function editRepeatWords() {
     const editRepeatsAnswer = await inquirer.prompt({
         name: 'editRepeatsSelection',
         type: 'list',
-        prefix: MAIN_MENU_LINES,
+        prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         default: defaultOption,
         message: 'Want to Allow Words to Repeat?',
         choices: newChoices
@@ -1002,8 +927,8 @@ async function editRepeatWords() {
         user.settings.allow_repeats = false
     }
 
-    await showLoadingSpinner('Returning to Settings...', SETTINGS_DELAY);
-    updateSettingsText();
+    await showLoadingSpinner('Returning to Settings...', CONSTANTS.SETTINGS_DELAY);
+    const settingsText = txtFuncs.updateSettingsText(user);
     await titleBlock(settingsText, settings);
 }
 
@@ -1012,7 +937,7 @@ async function saveUserData(){
     let userDataRaw;
 
     try {
-        userDataRaw = await fs.promises.readFile(USERFILE, 'utf8');
+        userDataRaw = await fs.promises.readFile(CONSTANTS.USERFILE, 'utf8');
     } catch (err) {
         console.error("Error - unable to read the user file");
         process.exit(1);
@@ -1022,14 +947,14 @@ async function saveUserData(){
 
     // Find user in JSON file data
     for (let i = 0; i < userData.length; i++) {
-        if (userData[i].username === currentUsername) {
+        if (userData[i].username === user.username) {
             userData[i] = user;
             break;
         }
     }
 
     try {
-        await fs.promises.writeFile(USERFILE, JSON.stringify(userData));
+        await fs.promises.writeFile(CONSTANTS.USERFILE, JSON.stringify(userData));
     } catch (err) {
         console.error("Unable to append user data to database");
         process.exit(1)
@@ -1039,7 +964,7 @@ async function saveUserData(){
 async function makeFolderIfDoesNotExist() {
     // Make db folder if it doesn't exist
     try{
-        await fs.promises.mkdir(DB_FOLDER);
+        await fs.promises.mkdir(CONSTANTS.DB_FOLDER);
     } catch (err) {
         if (err.code == 'EEXIST') {
             return
@@ -1051,10 +976,10 @@ async function makeFolderIfDoesNotExist() {
 
 async function prepareFilesForGame() {
     // Make user file if it doesn't exist
-    const userFileExists = await checkIfFileExists(USERFILE);
+    const userFileExists = await checkIfFileExists(CONSTANTS.USERFILE);
     if (!userFileExists) {
         try {
-            await fs.promises.writeFile(USERFILE, JSON.stringify[user]);
+            await fs.promises.writeFile(CONSTANTS.USERFILE, JSON.stringify[user]);
         } catch (err) {
             console.error(`Error - game needs ${file} file`);
             process.exit(1);
@@ -1063,53 +988,23 @@ async function prepareFilesForGame() {
 
     // The pipe file should be reset at the start of a game, regardless if it exists
     try {
-        await fs.promises.writeFile(PIPE_TO_API, JSON.stringify(wordRequest));
+        const startingWordRequest = {
+            request: {
+                word_needed: false,
+                word_length: 0
+            },
+            response: {
+                word: null,
+                new_word: false
+            }
+        }
+        await fs.promises.writeFile(CONSTANTS.PIPE_TO_API, JSON.stringify(startingWordRequest));
     } catch (err) {
         console.error(`Error - game needs ${file} file`);
         process.exit(1);
     }
 }
 
-function updateBottomTitleMainMenuText() {
-    if (currentUsername === GUEST) {
-        bottomTitleTextMainMenu = `Playing As: ${user.username}\n` +
-            `Note: Your Win/Loss Record and User Settings Will not be Saved\n` +
-            `Wins: ${user.wins}    Losses: ${user.losses}    Current Word Length: ${user.settings.word_length}    Hints Available: ${user.settings.hints}`
-    } else {
-        bottomTitleTextMainMenu = `Playing As: ${user.username}\n` +
-            `Total Wins: ${user.wins}    Total Losses: ${user.losses}    Current Word Length: ${user.settings.word_length}    Hints Available: ${user.settings.hints}`
-    }
-}
-
-function updateBottomTitleGameText() {
-    bottomTitleTextGame = `Type /help for help! Type /hint for a hint! Type /exit to return to main menu\n` +
-        `Letters Guessed: ${gameData.letters_guessed.join(",")}\n` + 
-        `Guesses Left: ${gameData.guesses}\n` +
-        `Hints Left: ${gameData.hints_left}\n\n` +
-        `YOUR WORD:\n${gameData.correct_letters.join(" ")}`
-}
-
-function updateSettingsText() {
-    let instructionsBeforeGame;
-    let allowRepeats;
-
-    if (user.settings.show_instructions) {
-        instructionsBeforeGame = "Yes";
-    } else {
-        instructionsBeforeGame = "No";
-    }
-
-    if (user.settings.allow_repeats) {
-        allowRepeats = "Yes";
-    } else {
-        allowRepeats = "No";
-    }
-
-    settingsText = `Current Settings:\n` +
-    `Word Length: ${user.settings.word_length}\nHints: ${user.settings.hints}\n` +
-    `Instructions Shown Before Game: ${instructionsBeforeGame}\n` +
-    `Allow Repeat Words: ${allowRepeats}`
-}
 
 async function checkIfFileExists (path) {  
     try {
@@ -1127,22 +1022,24 @@ await prepareFilesForGame();
 
 if (process.argv.length === 2) {
     await titleBlock('A Node.js CLI Word Guessing Game - Made By Giovanni Propersi', askIfGuest);
+    let menuChoice = mainMenuGuest;
 
-    if (currentUsername === GUEST) {
-        menuChoice = mainMenuGuest;
-    } else {
+    if (user.username !== CONSTANTS.GUEST) {
         menuChoice = mainMenu;
     }
-    
+
+    let letsPlay = true;
+    let bottomTitleText;
     while (letsPlay) {
         
-        if (isPlaying) {
-            updateBottomTitleGameText()
-            await titleBlock(bottomTitleTextGame, runGame)
+        if (gameData.isPlaying) {
+            bottomTitleText = txtFuncs.updateBottomTitleGameText(gameData);
+            await titleBlock(bottomTitleText, runGame)
         } else {
-            updateBottomTitleMainMenuText()
-            await titleBlock(bottomTitleTextMainMenu, menuChoice);
-            await handleMenu(menuSelection);
+            bottomTitleText = txtFuncs.updateBottomTitleMainMenuText(user);
+            // bottomTitleText = updateBottomTitleMainMenuText();
+            await titleBlock(bottomTitleText, menuChoice);
+            await handleMenu(gameData.menuSelection);
         }
     }
 } else if (process.argv.length > 2) {
