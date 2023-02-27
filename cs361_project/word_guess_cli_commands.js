@@ -1,11 +1,24 @@
 import chalk from "chalk";
 import fs from 'fs';
-import { TEXTS } from "./text_objects.js";
-import { CONSTANTS, CLI_CONSTANTS, newUserOrGuest } from "./constants.js";
-
-let user = newUserOrGuest;
+import { TEXTS } from "./text_constants.js";
+import { CONSTANTS, CLI_CONSTANTS, ARG_DEFINITIONS, SETTINGS_STRINGS } from "./constants.js";
+import users from "./users.js";
+import cliSettings from "./settings.js"
+import { sleep } from "./utils.js"
 
 export async function parseCommandLineArguments(passedArguments) {
+    validateArguments(passedArguments);
+
+    const mainArgsProp = ARG_DEFINITIONS.MAIN_ARGUMENTS;
+    const followOnArgsProp = ARG_DEFINITIONS.FOLLOW_ON_ARGUMENTS;
+
+    let userPassedArguments = splitArguments(passedArguments);
+    let mainArgument = userPassedArguments.mainArgsProp;
+    let followOnArguments = userPassedArguments.followOnArgsProp;
+    await performCommandLineCommand(mainArgument, followOnArguments, passedArguments)
+}
+
+function validateArguments(passedArguments) {
     try {
         if (passedArguments[0][0] !== "-") {
             console.error(chalk.greenBright(`Invalid Arguments.\n`, TEXTS.CLI_HELP_TEXT));
@@ -15,7 +28,10 @@ export async function parseCommandLineArguments(passedArguments) {
         console.error(chalk.greenBright(`Invalid Arguments.\n`, TEXTS.CLI_HELP_TEXT));
         process.exit(1);
     }
+}
 
+
+function splitArguments(passedArguments) {
     let main_argument = passedArguments[0].replace("-", "");;
     while (main_argument.includes("-")) {
         main_argument = main_argument.replace("-", "");
@@ -26,29 +42,41 @@ export async function parseCommandLineArguments(passedArguments) {
         process.exit(1);
     }
 
-    let followOnArguments = [];
+    let additionalArgs = [];
     for (let i = 1; i < passedArguments.length; i++) {
-        followOnArguments.push(passedArguments[i]);
+        additionalArgs.push(passedArguments[i]);
     }
-    
-    switch (main_argument) {
+
+    const mainArgsProp = ARG_DEFINITIONS.MAIN_ARGUMENTS;
+    const followOnArgsProp = ARG_DEFINITIONS.FOLLOW_ON_ARGUMENTS;
+
+    let userPassedArguments = {
+        mainArgsProp: main_argument, 
+        followOnArgsProp: additionalArgs
+    }
+
+    return userPassedArguments;
+}
+
+async function performCommandLineCommand(mainArgs, followArgs, allArgs) {
+    switch (mainArgs) {
         case "r":
         case "register": {
-            registerNewUser(followOnArguments);
+            await registerNewUser(followArgs);
             break;
         }
         case "g":
         case "get": {
-            readUserInfo(followOnArguments);
+            await readUserInfo(followArgs);
             break;
         }
         case "m": {
-            modifyUserInfo(followOnArguments);
+            await modifyAndValidateUserInfo(followArgs);
             break;
         }
         case "w":
         case "W": {
-            await getAWord(passedArguments)
+            await getAWord(allArgs)
             break;
         }
         case "game": {
@@ -64,16 +92,35 @@ export async function parseCommandLineArguments(passedArguments) {
             console.error(chalk.greenBright(`Invalid Arguments.\n`, TEXTS.CLI_HELP_TEXT))
             process.exit(1);
         }
-    }
+    } 
 }
 
 function showGameHelp(){
     console.clear();
-    console.log(chalk.cyanBright(CLI.GAME_HELP_TEXT));
+    console.log(chalk.cyanBright(TEXTS.CLI_GAME_HELP));
     process.exit(0);
 }
 
-function registerNewUser(passedArguments) {
+async function registerNewUser(passedArguments) {
+    validateArgumentsForNewUsername(passedArguments);
+    let newUsername = passedArguments[0];
+    validateUsername(newUsername);
+
+    const alreadyExists = await users.findIfUsernameExists(newUsername);
+    if (alreadyExists) {
+        usernameAlreadyExists();
+    }
+
+    // Create user if not found
+    await users.addUserToDatabase(newUsername);
+
+    console.log(chalk.blueBright(
+        `Success: ${newUsername} has been registered`
+    ))
+    process.exit(0);
+}
+
+function validateArgumentsForNewUsername(passedArguments) {
     const INVALID_USERNAME = `Please enter a username, 3-29 characters in length, only alphanumeric or underscores allowed.\nMust start with a letter.\n`;
     if (passedArguments.length !== 1) {
         console.error(chalk.greenBright(
@@ -82,14 +129,6 @@ function registerNewUser(passedArguments) {
             `Example: "node index -r marypoppins"`))
         process.exit(1);
     }
-
-    let potentialUsername = passedArguments[0];
-    validateUsername(potentialUsername);
-    let originalUserData = findIfUsernameAlreadyExists(potentialUsername);
-
-    // Create user if not found
-    addUserToDatabase(originalUserData, potentialUsername)
-
 }
 
 function validateUsername(username) {
@@ -104,52 +143,47 @@ function validateUsername(username) {
             `Example: "node index -r marypoppins"\n` +
             `Example: "node index -g marypoppins word_length"\n` +
             `Example: "node index -g marypoppins"\n`
+            `Example: "node index -m marypoppins word_length 3"\n`
         ))
         process.exit(1);
     }
 }
 
-function findIfUsernameAlreadyExists(username) {
-    let originalUserDataRaw;
-    try {
-        originalUserDataRaw = fs.readFileSync(CONSTANTS.USERFILE, 'utf8');
-    } catch (err) {
-        console.error(`Error - unable to read the user file\n${err}`);
-        process.exit(1);
-    }
-
-    const originalUserData = JSON.parse(originalUserDataRaw);
-    // Find user in JSON file data, if exists set proper data
-    for (let i = 0; i < originalUserData.length; i++) {
-        if (originalUserData[i].username === username) {
-            console.error(chalk.greenBright(
-                `Error: Username already exists. Please try again.\n`
-            ))
-            process.exit(1);
-        }
-    }
-
-    return originalUserData;
+function usernameAlreadyExists() {
+    console.error(chalk.greenBright(
+        `Error: Username already exists. Please try again.\n`
+    ))
+    process.exit(1);
 }
 
-function addUserToDatabase(originalUserData, newUsername) {
-    user.username = newUsername;
-    originalUserData.push(user)
+async function readUserInfo(passedArguments) {
+    validateArgumentsForReadingUserInfo(passedArguments);
 
-    try {
-        fs.writeFileSync(CONSTANTS.USERFILE, JSON.stringify(originalUserData));
-    } catch (err) {
-        console.error(`Error: Unable to append user data to database\n${err}`);
-        process.exit(1)
+    let potentialUsername = passedArguments[0];
+
+    validateUsername(potentialUsername);
+
+    switch (passedArguments.length) {
+        case 1: {
+            // just a username passed
+            await readAllUserInfo(potentialUsername);
+            break
+        }
+        case 2: {
+            // username and specific attribute
+            if (!CLI_CONSTANTS.VALID_USER_SETTINGS.includes(passedArguments[1])) {
+                invalidUserSettingRequested();
+                break;
+            } 
+
+            await readSpecificUserInfo(potentialUsername, passedArguments[1])
+            break;
+        }
     }
-
-    console.log(chalk.blueBright(
-        `Success: ${newUsername} has been registered`
-    ))
     process.exit(0);
 }
 
-function readUserInfo(passedArguments) {
+function validateArgumentsForReadingUserInfo(passedArguments) {
     const INVALID_USERNAME = `Please enter a username, 3-29 characters in length, only alphanumeric or underscores allowed.\nMust start with a letter.\n`;
     if (passedArguments.length < 1 || passedArguments.length > 2) {
         console.error(chalk.greenBright(
@@ -160,151 +194,72 @@ function readUserInfo(passedArguments) {
         ))
         process.exit(1);
     }
-
-    let potentialUsername = passedArguments[0];
-
-    validateUsername(potentialUsername);
-
-    switch (passedArguments.length) {
-        case 1: {
-            // just a username passed
-            readAllUserInfo(potentialUsername);
-            break
-        }
-        case 2: {
-            // username and specific attribute
-            if (!CLI_CONSTANTS.VALID_SETTINGS.includes(passedArguments[1])) {
-                console.error(chalk.greenBright(
-                    `Error: Invalid user setting requested.\n` +
-                    `Must include: ${CLI_CONSTANTS.VALID_SETTINGS.join(" || ")}\n` +
-                    `Example: "node index -g marypoppins word_length"\n`
-                ))
-            } else {
-                readSpecificUserInfo(potentialUsername, passedArguments[1])
-            }
-            break;
-        }
-    }
-    process.exit(0);
 }
 
-function readAllUserInfo(username) {
-    let allUserData;
-    try {
-        allUserData = fs.readFileSync(CONSTANTS.USERFILE, 'utf-8')
-    } catch (err) {
-        console.error(`Error reading user database.\n${err}`)
-        process.exit(1);
-    }
+function invalidUserSettingRequested() {
+    console.error(chalk.greenBright(
+        `Error: Invalid user setting requested.\n` +
+        `Must include: ${CLI_CONSTANTS.VALID_USER_SETTINGS.join(" || ")}\n` +
+        `Example: "node index -g marypoppins word_length"\n`
+    ))
+}
 
-    let userInData = false;
-
-    const originalUserData = JSON.parse(allUserData);
-    // Find user in JSON file data, if exists set proper data
-    for (let i = 0; i < originalUserData.length; i++) {
-        if (originalUserData[i].username === username) {
-            user = originalUserData[i];
-            userInData = true;
-            break;
-        }
-    }
-
-    if (!userInData) {
+async function readAllUserInfo(username) {
+    const userExists = await users.findIfUsernameExists(username);
+    if (!userExists) {
         console.error(chalk.greenBright(`User does not exist.\n`));
         process.exit(1);
     }
 
-    let wantsInstructions = "No";
-    let wantsRepeats = "No";
+    const user = await users.getSpecificUserData(username);
+    const userRecords = users.updateUserRecords(user);
 
-    if (user.settings.allow_repeats) {
-        wantsRepeats = "Yes";
-    }
-
-    if (user.settings.show_instructions) {
-        wantsInstructions = "Yes";
-    }
-
-    let textToLog = `Username: ${user.username}\n` +
-        `Total Wins: ${user.wins}\tTotal Losses: ${user.losses}\n` +
-        `Current Word Length: ${user.settings.word_length}\t Current Hints: ${user.settings.hints}\n` +
-        `Wants Instructions Before Game: ${wantsInstructions}\t Allows Repeat Words: ${wantsRepeats}\n` +
-        `Specific Word Length Statistics:\n` 
-
-    for (let i = CONSTANTS.MIN_WORD_LENGTH; i <= CONSTANTS.MAX_WORD_LENGTH; i++) {
-        textToLog += ` ${i}: Wins=${user.win_loss_details[i].W} `
-        textToLog += ` Loss=${user.win_loss_details[i].L} `
-
-        if (i % 2 == 0){
-            textToLog += `\n`
-        } else if (i != CONSTANTS.MAX_WORD_LENGTH ) {
-            textToLog += `|| `
-        }
-    }
-    textToLog += `\n${user.words_played.join(" || ")}`
-    console.log(chalk.blueBright(textToLog));
+    console.log(chalk.blueBright(userRecords));
     process.exit(0)
 }
 
-function readSpecificUserInfo(username, setting) {
-    let allUserData;
-    try {
-        allUserData = fs.readFileSync(CONSTANTS.USERFILE, 'utf-8')
-    } catch (err) {
-        console.error(`Error reading user database.\n${err}`)
-        process.exit(1);
-    }
-
-    let userInData = false;
-
-    const originalUserData = JSON.parse(allUserData);
-    // Find user in JSON file data, if exists set proper data
-    for (let i = 0; i < originalUserData.length; i++) {
-        if (originalUserData[i].username === username) {
-            user = originalUserData[i];
-            userInData = true;
-            break;
-        }
-    }
-
-    if (!userInData) {
+async function readSpecificUserInfo(username, setting) {
+    const userExists = await users.findIfUsernameExists(username);
+    if (!userExists) {
         console.error(chalk.greenBright(`User does not exist.\n`));
         process.exit(1);
     }
 
+    const user = await users.getSpecificUserData(username);
+    displaySpecificUserSetting(user, setting);
+}
+
+function displaySpecificUserSetting(user, setting) {
     // Must include: word_length || hints || show_instructions || allow_repeats
     switch (setting) {
-        case "word_length": {
+        case SETTINGS_STRINGS.WORD_LENGTH: {
             console.log(chalk.blueBright(
                 `Word Length: ${user.settings.word_length}`
             ))
             break;
         }
-        case "hints": {
+        case SETTINGS_STRINGS.HINTS: {
             console.log(chalk.blueBright(
                 `Number of Hints: ${user.settings.hints}`
             ))
             break;
         }
-        case "show_instructions": {
-            let wantsInstructions;
+        case SETTINGS_STRINGS.SHOW_INSTRUCTIONS: {
+            let wantsInstructions = "No";
             if (user.settings.show_instructions) {
                 wantsInstructions = "Yes";
-            } else {
-                wantsInstructions = "No";
-            }
+            } 
             console.log(chalk.blueBright(
                 `Instructions Before Every Game: ${wantsInstructions}`
             ))
             break;
         }
-        case "allow_repeats": {
-            let wantsRepeats;
+        case SETTINGS_STRINGS.ALLOW_REPEATS: {
+            let wantsRepeats = "No";
             if (user.settings.allow_repeats) {
                 wantsRepeats = "Yes";
-            } else {
-                wantsRepeats = "No;"
-            }
+            } 
+
             console.log(chalk.blueBright(
                 `Allows Repeat Words: ${wantsRepeats}`
             ))
@@ -314,222 +269,154 @@ function readSpecificUserInfo(username, setting) {
     process.exit(0);
 }
 
-function modifyUserInfo(passedArguments) {
+async function modifyAndValidateUserInfo(passedArguments) {
+    validateArgumentsForModifyingUserInfo(passedArguments);
+
+    const username = passedArguments[0];
+    validateUsername(username);
+    const userExists = await users.findIfUsernameExists(username);
+    if (!userExists) {
+        console.error(chalk.greenBright(`User does not exist.\n`));
+        process.exit(1);
+    }
+
+    const settingToChange = passedArguments[1];
+    validateUserSetting(settingToChange);
+
+    const changeSettingTo = passedArguments[2];
+    let userData = await users.getSpecificUserData(username);
+    validateModifiedSettingValue(settingToChange, changeSettingTo, userData)
+
+    switch (settingToChange) {
+        case "word_length" : {
+            let newWordLength = parseInt(changeSettingTo);
+            userData = cliSettings.cliModifyWordLength(userData, newWordLength);
+            break;
+        }
+
+        case "hints": {
+            let newHints = parseInt(changeSettingTo);
+            userData = cliSettings.cliModifyWordHints(userData, newHints)
+            break;
+        }
+
+        case "show_instructions": {
+            userData = cliSettings.cliModifyShowInstructions(userData, changeSettingTo);
+            break;
+        }
+        case "allow_repeats": {
+            userData = cliSettings.cliModifyAllowRepeats(userData, changeSettingTo);
+            break;
+        }
+
+        default: {
+            invalidArgumentsPassedForChangingSpecificSetting()
+            break;
+        }
+    }
+
+    await users.saveUserData(userData);
+    process.exit(0);
+}
+
+function validateArgumentsForModifyingUserInfo(passedArguments) {
     const INVALID_USERNAME = `Please enter a username, 3-29 characters in length, only alphanumeric or underscores allowed.\nMust start with a letter.\n`;
     if (passedArguments.length !== 3) {
         console.error(chalk.greenBright(
             `Error: Must pass a single username, setting to modify, and what to change the setting to.\n` + 
             INVALID_USERNAME + 
             `Example: "node index -m marypoppins word_length 3"\n` +
-            `Must include: ${CLI_CONSTANTS.VALID_SETTINGS.join(" || ")}\n`
+            `Must include: ${CLI_CONSTANTS.VALID_USER_SETTINGS.join(" || ")}\n`
         ))
         process.exit(1);
     }
+}
 
-    let username = passedArguments[0];
-    let settingToChange = passedArguments[1];
-    let changeSettingTo = passedArguments[2];
-
-    const usernameIsValid = username.match(
-        /^[A-Za-z][A-Za-z0-9_]{2,29}$/
-    )
-
-    if (!usernameIsValid) {
-        console.error(chalk.greenBright(
-            `Error: Invalid username entered.\n` +
-            INVALID_USERNAME +
-            `Example: "node index -m marypoppins word_length 3"\n`
-        ))
-        process.exit(1);
-    }
-
-    if (!CLI_CONSTANTS.VALID_SETTINGS.includes(settingToChange)) {
+function validateUserSetting(settingToChange) {
+    if (!CLI_CONSTANTS.VALID_USER_SETTINGS.includes(settingToChange)) {
         console.error(chalk.greenBright(
             `Error: Invalid user setting requested.\n` +
-            `Must include: ${CLI_CONSTANTS.VALID_SETTINGS.join(" || ")}\n` +
+            `Must include: ${CLI_CONSTANTS.VALID_USER_SETTINGS.join(" || ")}\n` +
             `Example: "node index -m marypoppins word_length 3"\n`
         ))
-    }
-
-    let allUserData;
-    try {
-        allUserData = fs.readFileSync(CONSTANTS.USERFILE, 'utf-8')
-    } catch (err) {
-        console.error(`Error reading user database.\n${err}`)
         process.exit(1);
     }
+}
 
-    let userInData = false;
-
-    const originalUserData = JSON.parse(allUserData);
-    // Find user in JSON file data, if exists set proper data
-    for (let i = 0; i < originalUserData.length; i++) {
-        if (originalUserData[i].username === username) {
-            user = originalUserData[i];
-            userInData = true;
-            break;
-        }
-    }
-
-    if (!userInData) {
-        console.error(chalk.greenBright(`User does not exist.\n`));
-        process.exit(1);
-    }
-
-    let previousUserData;
-    let newUserData;
+function validateModifiedSettingValue(settingToChange, changeSettingTo, user) {
     switch (settingToChange) {
-        case "word_length" : {
-            let newWordLength = parseInt(changeSettingTo);
-            if (Number.isNaN(newWordLength) || newWordLength < 3 || newWordLength > 15) {
-                console.error(chalk.greenBright(
-                    `Invalid entry for new word length.\n` +
-                    `Word length can be minimum 3 characters, and max 15 characters.\n`
-                ))
-                process.exit(1)
-            } 
-
-            previousUserData = user.settings.word_length;
-            newUserData = newWordLength;
-
-            if (previousUserData === newUserData) {
-                console.log(chalk.blueBright(
-                    `Word Length: ${previousUserData}\n` +
-                    `No change performed since identical to current.\n`
-                ))
-                process.exit(0);
-            } else {
-                user.settings.word_length = newWordLength
-                console.log(chalk.blueBright(
-                    `Old Word Length: ${previousUserData}\n` +
-                    `New Word Length: ${newUserData}\n`
-                ))
-            }
-            
+        case SETTINGS_STRINGS.WORD_LENGTH : {
+            const newWordLength = parseInt(changeSettingTo);
+            validateModifiedWordLength(newWordLength)  
             break;
         }
 
-        case "hints": {
-            let newHints = parseInt(changeSettingTo);
-            let currentWordLength = user.settings.word_length;
-            if (Number.isNaN(newHints) || newHints < 0 || (newHints > currentWordLength - 2)) {
-                console.error(chalk.greenBright(
-                    `Invalid entry for new word length.\n` +
-                    `Number of hints must be greater than or equal to 0, and must be less than or equal to the number of \n` +
-                    `the current word length setting, minus 2.`
-                ))
-                process.exit(1)
-            } 
-
-            previousUserData = user.settings.hints;
-            newUserData = newHints;
-
-            if (previousUserData === newUserData) {
-                console.log(chalk.blueBright(
-                    `Hints: ${previousUserData}\n` +
-                    `No change performed since identical to current.\n`
-                ))
-                process.exit(0);
-            } else {
-                user.settings.hints = newHints
-                console.log(chalk.blueBright(
-                    `Old Hints: ${previousUserData}\n` +
-                    `New Hints: ${newUserData}\n`
-                ))
-            }
+        case SETTINGS_STRINGS.HINTS: {
+            const newHints = parseInt(changeSettingTo);
+            const currentWordLength = user.settings.word_length;
+            validateModifiedHintNumber(newHints, currentWordLength);
             break;
         }
-
-        case "show_instructions": {
-            if (!CLI_CONSTANTS.VALID_BOOLEANS.includes(changeSettingTo)) {
-                console.error(chalk.greenBright(
-                    `Invalid entry for skipping instructions.\n` +
-                    `Must be either "true" or "false".\n`
-                ))
-                process.exit(1)
-            }
-
-            if (changeSettingTo === "true") {
-                console.log(chalk.blueBright(
-                    `Will now show instructions before every game.\n`
-                ))
-                user.settings.show_instructions = true;
-            } else {
-                console.log(chalk.blueBright(
-                    `Will now skip the instructions before every game.\n`
-                ))
-                user.settings.show_instructions = false;
-            }
+        case SETTINGS_STRINGS.ALLOW_REPEATS:
+        case SETTINGS_STRINGS.SHOW_INSTRUCTIONS: {
+            validateBooleanForInstructionsOrHints(changeSettingTo);
             break;
         }
-        case "allow_repeats": {
-            if (!CLI_CONSTANTS.VALID_BOOLEANS.includes(changeSettingTo)) {
-                console.error(chalk.greenBright(
-                    `Invalid entry for allowing repeat words.\n` +
-                    `Must be either "true" or "false".\n`
-                ))
-                process.exit(1)
-            }
-
-            if (changeSettingTo === "true") {
-                console.log(chalk.blueBright(
-                    `Repeat words are now allowed.\n`
-                ))
-                user.settings.allow_repeats = true;
-            } else {
-                console.log(chalk.blueBright(
-                    `Words will no longer be repeated.\n`
-                ))
-                user.settings.allow_repeats = false;
-            }
-            break;
-        }
-
         default: {
-            console.error(chalk.greenBright(
-                `Error: Must pass a single username, setting to modify, and what to change the setting to.\n` + 
-                INVALID_USERNAME + 
-                `Example: "node index -m marypoppins word_length 3"\n` +
-                `Must include: ${CLI_CONSTANTS.VALID_SETTINGS.join(" || ")}\n`
-            ))
-            process.exit(1);
-        }
-    }
-
-    saveUserData(username);
-    process.exit(0);
-}
-
-function saveUserData(username){
-    // Read in the users file
-    let userDataRaw;
-
-    try {
-        userDataRaw = fs.readFileSync(CONSTANTS.USERFILE, 'utf8');
-    } catch (err) {
-        console.error("Error - unable to read the user file");
-        process.exit(1);
-    }
-
-    const userData = JSON.parse(userDataRaw);
-
-    // Find user in JSON file data
-    for (let i = 0; i < userData.length; i++) {
-        if (userData[i].username === username) {
-            userData[i] = user;
+            invalidArgumentsPassedForChangingSpecificSetting();
             break;
         }
     }
+}
 
-    try {
-        fs.writeFileSync(CONSTANTS.USERFILE, JSON.stringify(userData));
-    } catch (err) {
-        console.error(`Unable to append user data to database.\nError: ${err}`);
+function validateModifiedWordLength(newWordLength) {
+    const numIsNaN = Number.isNaN(newWordLength);
+    const numIsLessThanMin = (newWordLength < CONSTANTS.MIN_WORD_LENGTH )
+    const numIsMoreThanMax = (newWordLength > CONSTANTS.MAX_WORD_LENGTH)
+    if (numIsNaN || numIsLessThanMin || numIsMoreThanMax) {
+        console.error(chalk.greenBright(
+            `Invalid entry for new word length.\n` +
+            `Word length can be minimum ${CONSTANTS.MIN_WORD_LENGTH} characters, and max ${CONSTANTS.MAX_WORD_LENGTH} characters.\n`
+        ))
         process.exit(1)
+    }        
+}
+
+function validateModifiedHintNumber(newHintNumber, currentWordLength) {
+    const numIsNaN = Number.isNaN(newHintNumber);
+    const numGreaterThanZero = (newHintNumber < 0)
+    const validNumForWordLength = (newHintNumber > currentWordLength - 2)
+    if (numIsNaN || numGreaterThanZero || validNumForWordLength) {
+        console.error(chalk.greenBright(
+            `Invalid entry for new word length.\n` +
+            `Number of hints must be greater than or equal to 0, and must be less than or equal to the number of \n` +
+            `the current word length setting, minus 2.`
+        ))
+        process.exit(1)
+    }     
+}
+
+function validateBooleanForInstructionsOrHints(potentialBoolean) {
+    if (!CLI_CONSTANTS.VALID_BOOLEANS.includes(potentialBoolean)) {
+        console.error(chalk.greenBright(
+            `Invalid entry.\n` +
+            `Must be either "true" or "false".\n`
+        ))
+        process.exit(1)    
     }
 }
 
-async function getAWord(passedArguments) {
+function invalidArgumentsPassedForChangingSpecificSetting() {
+    console.error(chalk.greenBright(
+        `Error: Must pass a single username, setting to modify, and what to change the setting to.\n` + 
+        INVALID_USERNAME + 
+        `Example: "node index -m marypoppins word_length 3"\n` +
+        `Must include: ${CLI_CONSTANTS.VALID_USER_SETTINGS.join(" || ")}\n`
+    ))
+    process.exit(1);
+}
+
+function validateArgumentsForGettingRandomWord(passedArguments) {
     if (passedArguments.length < 1 || passedArguments.length > 2) {
         console.error(chalk.greenBright(
             `Error: Commands take a single integer argument, or no argument.\n` + 
@@ -538,21 +425,33 @@ async function getAWord(passedArguments) {
             ))
         process.exit(1);
     }
-    
-    let wordLengthRequested;
+}
 
+function determineLengthOfRandomWordFromArgs(passedArguments) {
+    let wordLengthRequested;
     if (passedArguments.length === 1) {
         wordLengthRequested = 5;
     } else {
         wordLengthRequested = parseInt(passedArguments[1]);
-        if (Number.isNaN(wordLengthRequested) || wordLengthRequested < 3 || wordLengthRequested > 15) {
+        const numIsNaN = Number.isNaN(wordLengthRequested);
+        const numIsBelowMin = (wordLengthRequested < CONSTANTS.MIN_WORD_LENGTH);
+        const numIsBelowMax = (wordLengthRequested > CONSTANTS.MAX_WORD_LENGTH) 
+        if (numIsNaN || numIsBelowMin || numIsBelowMax) {
             console.error(chalk.greenBright(
                 `Invalid entry for requested word length. Must be an integer.\n` +
-                `Word length can be minimum 3 characters, and max 15 characters.\n`
+                `Word length can be minimum ${CONSTANTS.MIN_WORD_LENGTH} characters, and max ${CONSTANTS.MAX_WORD_LENGTH} characters.\n`
             ))
             process.exit(1)
         } 
     }
+
+    return wordLengthRequested;
+}
+
+async function getAWord(passedArguments) {
+    validateArgumentsForGettingRandomWord(passedArguments);
+
+    const wordLengthRequested = determineLengthOfRandomWordFromArgs(passedArguments);
 
     let waitingForWord = true;
     let pipeData;
@@ -598,7 +497,3 @@ async function getAWord(passedArguments) {
     ))
     process.exit(0);
 }
-
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }

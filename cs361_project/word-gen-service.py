@@ -4,11 +4,12 @@ import requests
 
 def generate_random_word():
     with open("service.txt", "w") as f:
-        random_num = random.randint(3,15)
+        random_num = random.randint(3,9)
         print(random_num)
-        response = requests.get(f'https://random-word-api.herokuapp.com/word?length={random_num}')
+        response = requests.get(f'https://random-word-api.vercel.app/api?words=1&length={random_num}')
         data = response.json()
         f.write(f"{data}\n")
+        print(f"Word: {data}")
     print("Word printed.")
 
 if __name__ == '__main__':
@@ -18,5 +19,5 @@ if __name__ == '__main__':
         with open("service.txt", "r") as f:
             line = f.readline().strip()
         if line == "run":
-            print("Generating random num...")
+            print("Generating random word...")
             generate_random_word()

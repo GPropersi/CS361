@@ -1,3 +1,5 @@
+import { CONSTANTS } from "./constants.js"
+
 export const HELP_TEXT = `\n\n` + 
     `Welcome to.... Guess The Word!!\n\n` + 
     `The objective of the game is to guess a word by inputting letters, one at a time.\n` +
@@ -30,18 +32,18 @@ export const TEXTS = {
             `\tExample: "> node index -g marypoppins" or "> node index --get marypoppins"\n` +
             `\tOtherwise, the following commands can be appended to provide more specificity regarding the user's data\n` +
             `\tNote that this only returns the current setting\n\n` +
-            `\tword_length      \tNote that word length can range from 3 to 15 characters\n` +
+            `\tword_length      \tNote that word length can range from ${CONSTANTS.MIN_WORD_LENGTH} to ${CONSTANTS.MAX_WORD_LENGTH} characters\n` +
             `\thints            \tNote that the max number of hints is word_length - 2\n` +
             `\tshow_instructions\tWhether to show the instructions before a game\n` +
             `\tallow_repeats    \tWhether the same word can be played again\n\n` +
             `-m                 \t\tModify a username's settings. \n\tFollow this flag by the username, and then the setting to edit.\n` +      // Modify user data
             `\tExample: "node index -m marypoppins word_length 8" or "node index -m marypoppins allow_repeats true"\n\n` +
-            `\tword_length      \tNote that word length can range from 3 to 15 characters. Pass an integer.\n` +
+            `\tword_length      \tNote that word length can range from ${CONSTANTS.MIN_WORD_LENGTH} to ${CONSTANTS.MAX_WORD_LENGTH} characters. Pass an integer.\n` +
             `\thints            \tNote that the max number of hints is word_length - 2. Pass an integer.\n` +
             `\tshow_instructions\tWhether to show the instructions before a game. Modified by "true" or "false"\n` +
             `\tallow_repeats    \tWhether the same word can be played again. Modified by "true" or "false"\n\n` +
             `-w or -W           \t\tGet a random word. Can be followed by an integer for a specific length\n` +      // Modify user settings
-            `\tDefault word length is 5. Note that word length can be anywhere from 3 to 15 characters\n\n` +      // Get a random word
+            `\tDefault word length is 5. Note that word length can be anywhere from ${CONSTANTS.MIN_WORD_LENGTH} to ${CONSTANTS.MAX_WORD_LENGTH} characters\n\n` +      // Get a random word
             `-game              \tExplains the game!\n` +      // Command explaining the game
             `-h or --help: Provides this help menu`,
 
@@ -50,7 +52,7 @@ export const TEXTS = {
             `If you want to keep track of your wins/losses and user settings, set up a username. No password needed!\n` +
             `Otherwise, feel free to play as a guest just to mess around and guess for fun!\n` +
             `You can alter most settings via the "Settings" menu in game - note that these won't be saved if you're a guest.\n` +
-            `The length of words you can guess are from 3 letters, to 15 letters long!\n` + 
+            `The length of words you can guess are from ${CONSTANTS.MIN_WORD_LENGTH} letters, to ${CONSTANTS.MAX_WORD_LENGTH} letters long!\n` + 
             `You are allowed to set your number of hints given to you during the game, up to a max number of hints of\n\tword length minus 2!\n` +
             `The objective of the game is to guess a word by inputting letters, one at a time.\n` +
             `The number of guesses you get is the number of letters in the word, plus 2.\n\n` + 

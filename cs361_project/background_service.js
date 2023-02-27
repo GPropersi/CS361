@@ -8,12 +8,12 @@ const spinner = createSpinner("Waiting for Request\n")
 
 let wordRequest = {
     request: {
-        word_needed: false,
-        word_length: 0
+        wordNeeded: false,
+        wordLength: 0
     },
     response: {
         word: null,
-        new_word: false
+        newWord: false
     }
 }
 
@@ -28,8 +28,8 @@ async function sitAndListen() {
         await sleep(50);
         await checkFile();
 
-        if (wordRequest.request.word_needed) {
-            spinner.update({text: `Request received for a ${wordRequest.request.word_length} letter word!`});
+        if (wordRequest.request.wordNeeded) {
+            spinner.update({text: `Request received for a ${wordRequest.request.wordLength} letter word!`});
             await sleep(300);
             randomWordSuccess = await getRandomWord();
 
@@ -37,7 +37,6 @@ async function sitAndListen() {
                 spinner.update({text: `"${wordRequest.response.word}" is the new Random Word! `})
                 await updatePipeFile();
                 await sleep(3000);
-                console.clear();
                 spinner.update({text: `Waiting for Request\n`})
             }
         }
@@ -56,9 +55,9 @@ async function checkFile() {
 }
 
 async function updatePipeFile(newWord) {
-    wordRequest.request.word_length = 0;
-    wordRequest.request.word_needed = false;
-    wordRequest.response.new_word = true;
+    wordRequest.request.wordLength = 0;
+    wordRequest.request.wordNeeded = false;
+    wordRequest.response.newWord = true;
 
     try {
         await fs.promises.writeFile(PIPE_TO_API, JSON.stringify(wordRequest));
@@ -69,14 +68,15 @@ async function updatePipeFile(newWord) {
 }
 
 async function getRandomWord() {
-    // https://random-word-api.herokuapp.com/word?length=5&lang=en&number=10
+    // https://random-word-api.vercel.app/api?words=1&length=3
     try {
-        const randomWordResponse = await axios.get('https://random-word-api.herokuapp.com/word', {
+        const randomWordResponse = await axios.get('https://random-word-api.vercel.app/api', {
             params: {
-                length: wordRequest.request.word_length
+                words: 1,
+                length: wordRequest.request.wordLength
             }
         })
-        wordRequest.response.word = randomWordResponse.data[0]
+        wordRequest.response.word = randomWordResponse.data[0];
         return true;
     } catch (err) {
         spinner.error({text: err, mark: ':('})
