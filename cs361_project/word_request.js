@@ -2,7 +2,7 @@ import fs from 'fs';
 import { CONSTANTS, startingWordRequest } from "./constants.js";
 import { showLoadingSpinner } from './utils.js';
 import { HELP_TEXT } from "./text_constants.js";
-import { helpBlock } from './index.js';
+import { helpBlock } from './run_game.js';
 
 async function requestWordOfDefinedLength(user, gameData) {
     let wordRequest = prepareToWriteToPipeForDefinedWordRequest(user);

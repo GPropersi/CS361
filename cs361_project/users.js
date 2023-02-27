@@ -94,7 +94,7 @@ export async function writeToUserDatabase(userData) {
 }
 
 export async function getUserOrCreateUser(usernameToCheck) {
-    await showLoadingSpinner("Getting User Ready...", 500);
+    await showLoadingSpinner(`Getting User Ready...`, 500);
     let user = newUserOrGuest;
 
     let originalUserData = await readInUserDatabase();

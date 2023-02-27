@@ -7,7 +7,7 @@ inquirer.registerPrompt('press-to-continue', PressToContinuePrompt)
 
 export async function askIfGuestPrompt(){
     return await inquirer.prompt({
-        name: 'type_of_user',
+        name: 'typeOfUser',
         type: 'list',
         prefix: '\n\n\n\n',
         message: TEXTS.GUEST_TEXT,
@@ -21,7 +21,7 @@ export async function askIfGuestPrompt(){
 
 export async function loginOrRegisterPrompt() {
     return await inquirer.prompt({
-        name: 'user_username',
+        name: 'userUsername',
         type: 'input',
         prefix: '\n\n\n\n\n\n\n\n\n\nNote: Case Sensitive!\n',
         message: 'Enter your Username: ',
@@ -95,7 +95,7 @@ export async function recordsScreenPrompt() {
 
 export async function runGamePrompt(gameData) {
     return await inquirer.prompt({
-        name: 'game_guess',
+        name: 'gameGuess',
         type: 'input',
         message: 'Guess a Letter: ', 
         validate(value) {
@@ -147,7 +147,7 @@ export async function afterGameMenuPrompt(user) {
     }
 
     return await inquirer.prompt({
-        name: 'after_game_menu_option',
+        name: 'afterGameMenuOption',
         type: 'list',
         prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         message: 'Select an Option Below Using the Return Key:',
@@ -157,7 +157,7 @@ export async function afterGameMenuPrompt(user) {
 
 export async function settingsPrompt() {
     return await inquirer.prompt({
-        name: 'settings_selection',
+        name: 'settingsSelection',
         type: 'list',
         prefix: CONSTANTS.MAIN_MENU_LINES.repeat(10),
         message: 'Select an Option Below Using the Arrow Keys and Return Key:',

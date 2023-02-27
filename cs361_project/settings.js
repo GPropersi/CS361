@@ -1,10 +1,10 @@
 import chalk from "chalk";
-import { titleBlock } from "./index.js";
 import { saveUserData } from "./users.js";
 import { CONSTANTS, SETTINGS_MENU, SETTINGS_OPTIONS } from "./constants.js";
-import { showLoadingSpinner } from "./utils.js";
+import utils from "./utils.js";
 import texts from "./title_text.js";
 import prompts from "./inquirer_prompts.js"
+import { titleBlock } from "./index.js";
 
 export async function settingsMenu(user, gameData) {
     if (user.username !== CONSTANTS.GUEST) {
@@ -12,34 +12,41 @@ export async function settingsMenu(user, gameData) {
     }
     const settingsAnswer = await prompts.settingsPrompt();
 
-    await handleSettingsMenuSelection(settingsAnswer.settings_selection, user, gameData);
+    await handleSettingsMenuSelection(settingsAnswer.settingsSelection, user, gameData);
+
 }
 
 async function returnToSettings(user) {
-    await showLoadingSpinner('Returning to Settings...', CONSTANTS.SETTINGS_DELAY);
+    await utils.showLoadingSpinner(`Returning to Settings...`, CONSTANTS.SETTINGS_DELAY);
     const settingsText = texts.updateSettingsText(user);
+
+    if (user.username !== CONSTANTS.GUEST) {
+        await saveUserData(user);
+    }
+
     await titleBlock(settingsText, settingsMenu);
+
 }
 
 async function handleSettingsMenuSelection(selection, user, gameData) {
     switch (selection) {
         case SETTINGS_MENU.WORD_LENGTH: {
-            await showLoadingSpinner(`Getting Current Word Length`, CONSTANTS.SETTINGS_DELAY);
+            await utils.showLoadingSpinner(`Getting Current Word Length`, CONSTANTS.SETTINGS_DELAY);
             await titleBlock(`Choose Your Word Length\nCurrent Word Length: ${user.settings.wordLength}`, editWordLength)
             break;
         }
         case SETTINGS_MENU.WORD_HINTS: {
-            await showLoadingSpinner('Getting Current Number of Word Hints', CONSTANTS.SETTINGS_DELAY);
+            await utils.showLoadingSpinner('Getting Current Number of Word Hints', CONSTANTS.SETTINGS_DELAY);
             await titleBlock(`Choose Your Number of Hints\nCurrent Number of Hints: ${user.settings.hints}`, editWordHints)
             break;
         }
         case SETTINGS_MENU.SKIP_INSTRUCTIONS: {
-            await showLoadingSpinner('Getting Current Selection for Skipping Instructions...', CONSTANTS.SETTINGS_DELAY);
+            await utils.showLoadingSpinner('Getting Current Selection for Skipping Instructions...', CONSTANTS.SETTINGS_DELAY);
             await titleBlock('Want to Skip the Instructions?', editSkipInstructions)
             break;
         }
         case SETTINGS_MENU.REPEAT_WORDS: {
-            await showLoadingSpinner('Getting Current Selection for Repeating Words...', CONSTANTS.SETTINGS_DELAY);
+            await utils.showLoadingSpinner('Getting Current Selection for Repeating Words...', CONSTANTS.SETTINGS_DELAY);
             await titleBlock('Want to Allow Words to Repeat?', editRepeatWords)
             break;
         }
@@ -49,7 +56,7 @@ async function handleSettingsMenuSelection(selection, user, gameData) {
         }
         case SETTINGS_MENU.SAVE_AND_RETURN: {
             gameData.isSetting = false;
-            await showLoadingSpinner('Saving Settings...', CONSTANTS.SETTINGS_DELAY);
+            await utils.showLoadingSpinner('Saving Settings...', CONSTANTS.SETTINGS_DELAY);
             if (user.username !== CONSTANTS.GUEST) {
                 await saveUserData(user);
             }
