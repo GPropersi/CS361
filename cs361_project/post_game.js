@@ -6,6 +6,8 @@ import { CONSTANTS, STRINGS } from "./constants.js";
 import users from "./users.js";
 import prompts from "./inquirer_prompts.js"
 import requestWords from "./word_request.js"
+import { mainMenuChoice } from "./index.js";
+
 
 function winningScreenTitle() {
     console.clear()
@@ -71,6 +73,7 @@ async function afterGameScreenMenu(user, gameData) {
         }
         case STRINGS.MAIN_MENU: {
             gameData.isPlaying = false;
+            // mainMenuChoice(user, gameData);
             break;
         }
         case STRINGS.SAVE_AND_EXIT: {

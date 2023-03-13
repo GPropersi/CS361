@@ -51,7 +51,7 @@ export async function runGame(user, gameData) {
 
     if (gameData.guesses === -1) {
         // Game over
-        handleIfWordNotGuessed(user, gameData);
+        await handleIfWordNotGuessed(user, gameData);
     }
 }
 

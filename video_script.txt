@@ -1,0 +1,55 @@
+**EACH FEATURE**
+- Login as guest
+- Login as user
+- Show updated JSON containing user
+- Show default user settings and records
+- Show game uses default settings off bat
+	- Show hints
+	- Show help
+	- Show exit
+- Show game uses random words (with partner's microservice) - WIN GAME
+	- Play again with random word
+	- exit early
+- Show records updated with win
+- Show settings change in settings menu
+- Show hints never go above word-length - 2
+- Show settings changed in main menu
+	- Change word length, hints, help menu
+- Show logout and login show same menu
+- Show guest settings still default
+	- Edit settings as guest
+	- Exit game
+	- Return as guest, show settings not saved
+
+
+** MENTION PARTNER MICROSERVICE
+
+** ADDITIONAL FEATURES
+- Show word history
+- Show command line
+- Show changing settings in command line for user changes settings in game
+- Show retrieving random word from command line
+
+** COGNITIVE STYLE HEURISTICS **
+1) Explain benefits of using new and existing features:
+	- Described to user on initial screen benefits of registering
+2) Explain costs of using new/existing features:
+	- Described to user on initial screen cost of not registering
+3) Let people gather as much info as they want, and no more than that
+	- After initially playing, players can choose if they want instructions
+		before every game or not
+4) Keep familiar features available
+	- Keyboard interactions are used for all interactions, and should be intuitive with arrow keys and other keys
+5) Make undo/redo and backtracking available
+	- User can undo/redo settings at any time, revert to default settings, and exit from within games if so desired
+6) Provide an explicit path through task
+	- Flow through game is explained at every step through all menu options
+	- Users can exit or return to menu at any given screen
+7) Provide ways to try out different approaches
+	- Users can also use command line interface to see their records, modify their settings, and pull a random word
+8) Encourage tinkerers to tinker mindfully
+	- Help command shows all commands during a game, and each command gives an explanation.
+	- Slight delay in settings menu to prevent excessive setting modification
+	
+** QUALITY ATTRIBUTE - DURABILITY
+	- All user settings/word modifications up to that point will be saved in an external file
