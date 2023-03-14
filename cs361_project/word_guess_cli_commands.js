@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import fs from 'fs';
 import { TEXTS } from "./text_constants.js";
-import { CONSTANTS, CLI_CONSTANTS, ARG_DEFINITIONS, SETTINGS_STRINGS } from "./constants.js";
+import { CONSTANTS, CLI_CONSTANTS, ARG_DEFINITIONS, SETTINGS_STRINGS, startingWordRequest } from "./constants.js";
 import users from "./users.js";
 import cliSettings from "./settings.js"
 import { sleep } from "./utils.js"
@@ -457,18 +457,12 @@ async function getAWord(passedArguments) {
     let pipeData;
     let wordToGuess;
 
-    let wordRequest = {
-        request: {
-            word_needed: true,
-            word_length: wordLengthRequested
-        },
-        response: {
-            word: null,
-            new_word: false
-        }
-    }
+    let wordRequest = startingWordRequest;
+    wordRequest.request.wordNeeded = true;
+    wordRequest.request.wordLength = wordLengthRequested;
 
     console.log(chalk.blueBright(`Requesting a ${wordLengthRequested} letter word...\n`))
+
     try {
         fs.writeFileSync(CONSTANTS.PIPE_TO_API, JSON.stringify(wordRequest));
     } catch (err) {
@@ -482,7 +476,7 @@ async function getAWord(passedArguments) {
             pipeData = fs.readFileSync(CONSTANTS.PIPE_TO_API, 'utf-8');
             wordRequest = JSON.parse(pipeData);
 
-            if (wordRequest.response.word !== null && wordRequest.response.new_word) {
+            if (wordRequest.response.word !== null && wordRequest.response.newWord) {
                 wordToGuess = wordRequest.response.word;
                 waitingForWord = false;
             }

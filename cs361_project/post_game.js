@@ -6,8 +6,7 @@ import { CONSTANTS, STRINGS } from "./constants.js";
 import users from "./users.js";
 import prompts from "./inquirer_prompts.js"
 import requestWords from "./word_request.js"
-import { mainMenuChoice } from "./index.js";
-
+import utils from "./utils.js";
 
 function winningScreenTitle() {
     console.clear()

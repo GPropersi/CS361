@@ -142,6 +142,7 @@ async function handleIfWordNotGuessed(user, gameData) {
     await utils.showLoadingSpinner(`Game over :(`, 1000)
     user.losses += 1
     user.winLossDetails[gameData.correctWord.length].L += 1
+    user.wordsPlayed.push(gameData.wordArray.join(""))
     if (user.username !== CONSTANTS.GUEST) {
         await users.saveUserData(user);
     }

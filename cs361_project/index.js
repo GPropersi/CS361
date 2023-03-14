@@ -118,17 +118,6 @@ async function handleMenu(menuOption) {
     }
 }
 
-export async function mainMenuChoice(user, gameData) {
-    let menuChoice = mainMenuGuest;
-
-    if (user.username !== CONSTANTS.GUEST) {
-        menuChoice = mainMenu;
-    }
-    bottomTitleText = txtFuncs.updateBottomTitleMainMenuText(user);
-    await titleBlock( bottomTitleText, menuChoice);
-    await handleMenu(gameData.menuSelection);
-}
-
 // Top line functions to begin CLI app
 await prepareForGame();
 
@@ -163,9 +152,3 @@ if (process.argv.length === 2) {
 }
 
 process.exit(0);
-
-export default {
-    mainMenuChoice,
-}
-
- 

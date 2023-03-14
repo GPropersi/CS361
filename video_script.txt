@@ -24,9 +24,14 @@
 
 ** MENTION PARTNER MICROSERVICE
 
-** ADDITIONAL FEATURES
-- Show word history
+** TWO ADDITIONAL FEATURES - and definition of done
+- Show win/loss record from GUI or CLI
+	- Given a user, when they want to see their win/loss record from their time playing, 
+		then they able to see their Records either through the GUI or the CLI.
 - Show command line
+	- Given a user, when they attempt to interact with the program through the command line interface, 
+		then they are able to register, modify their user settings, grab a random word, 
+		or get an explanation of the game.
 - Show changing settings in command line for user changes settings in game
 - Show retrieving random word from command line
 
@@ -53,3 +58,5 @@
 	
 ** QUALITY ATTRIBUTE - DURABILITY
 	- All user settings/word modifications up to that point will be saved in an external file
+	
+** CODE SCROLL
